@@ -45,8 +45,10 @@ def load_inventory_data(db_name='inventory_poc.db') -> pd.DataFrame | None:
                        in the same directory as this script.
 
     Returns:
-        pd.DataFrame | None: A DataFrame containing the inventory data with
-                              calculated ROP and RoQ, or None if loading fails.
+        tuple[pd.DataFrame | None, pd.DataFrame | None]: A tuple containing:
+            - item_params_df: DataFrame with item parameters, indexed by item_name.
+            - batches_df: DataFrame with batch details, indexed by batch_id.
+            Returns (None, None) if loading fails.
     """
     script_dir = os.path.dirname(os.path.abspath(__file__)) # Use abspath for reliability
     db_path = os.path.join(script_dir, db_name)
@@ -61,60 +63,69 @@ def load_inventory_data(db_name='inventory_poc.db') -> pd.DataFrame | None:
     conn = None
     try:
         conn = sqlite3.connect(db_path)
-        query = "SELECT * FROM inventory_items;"
-        # Use pandas read_sql_query for simplicity and robustness
-        df = pd.read_sql_query(query, conn)
 
-        if df.empty:
-            print("Error: No data found in inventory_items table after loading.")
-            return None
+        # Load item parameters
+        params_query = "SELECT * FROM item_parameters;"
+        item_params_df = pd.read_sql_query(params_query, conn)
 
-        # Set 'item_name' as the DataFrame index
-        if 'item_name' in df.columns:
-            df = df.set_index('item_name')
+        if item_params_df.empty:
+            print("Error: No data found in item_parameters table.")
+            return None, None
+        if 'item_name' not in item_params_df.columns:
+            print("Error: 'item_name' column not found in item_parameters table.")
+            return None, None
+        item_params_df = item_params_df.set_index('item_name')
+        print("Loaded item_parameters table.")
+
+        # Load inventory batches
+        batches_query = "SELECT batch_id, item_name, quantity_on_hand, expiry_date FROM inventory_batches;"
+        batches_df = pd.read_sql_query(batches_query, conn)
+
+        if batches_df.empty:
+            print("Warning: No data found in inventory_batches table. Returning empty DataFrame.")
+            # Return parameters but empty batches - might be valid if starting fresh
+            # Ensure required columns exist even if empty for consistency downstream
+            batches_df = pd.DataFrame(columns=['batch_id', 'item_name', 'quantity_on_hand', 'expiry_date'])
         else:
-            print("Error: 'item_name' column not found in the database table.")
-            return None
+             # Convert expiry_date to datetime objects
+            if 'expiry_date' in batches_df.columns:
+                batches_df['expiry_date'] = pd.to_datetime(batches_df['expiry_date'], errors='coerce')
+                if batches_df['expiry_date'].isnull().any():
+                    print("Warning: Some expiry dates could not be parsed and were set to NaT.")
+            else:
+                print("Error: 'expiry_date' column not found in inventory_batches table.")
+                return item_params_df, None # Return params, but signal batch error
 
-        # Ensure necessary columns exist before calculations
-        required_cols = ['max_daily_usage', 'buffer_days', 'target_days', 'initial_quantity_on_hand']
-        if not all(col in df.columns for col in required_cols):
-            missing = [col for col in required_cols if col not in df.columns]
-            print(f"Error: Missing one or more required columns from DB: {missing}")
-            return None
-
-        # Calculate the 'reorder_point' column
-        df['reorder_point'] = df['max_daily_usage'] * df['buffer_days']
-
-        # Calculate the 'reorder_quantity' column (RoQ)
-        df['reorder_quantity'] = df['max_daily_usage'] * df['target_days']
-
-        # Rename the 'initial_quantity_on_hand' column to 'quantity_on_hand'
-        df = df.rename(columns={'initial_quantity_on_hand': 'quantity_on_hand'})
-
-        # Ensure quantity_on_hand is integer type
-        df['quantity_on_hand'] = df['quantity_on_hand'].astype(int)
+            # Set batch_id as index
+            if 'batch_id' in batches_df.columns:
+                batches_df = batches_df.set_index('batch_id')
+            else:
+                print("Error: 'batch_id' column not found in inventory_batches table.")
+                return item_params_df, None # Return params, but signal batch error
 
         print(f"Successfully loaded data from {db_path}")
-        return df
+        return item_params_df, batches_df
 
     except sqlite3.Error as e:
         print(f"SQLite error occurred during data loading: {e}")
-        return None
+        return None, None
     except Exception as e:
         # Catch other potential errors during DataFrame processing
         print(f"An unexpected error occurred during data loading: {e}")
-        return None
+        return None, None
     finally:
         if conn:
             conn.close()
 
 # Example usage (optional, for testing the function directly)
 if __name__ == '__main__':
-    inventory_data = load_inventory_data()
-    if inventory_data is not None:
-        print("\nInventory Data loaded successfully:")
-        print(inventory_data.info())
-        print(inventory_data.head())
+    item_params, inventory_batches = load_inventory_data()
+    if item_params is not None and inventory_batches is not None:
+        print("\nItem Parameters loaded successfully:")
+        print(item_params.info())
+        print(item_params.head())
+        print("\nInventory Batches loaded successfully:")
+        print(inventory_batches.info())
+        print(inventory_batches.head())
     else:
         print("\nFailed to load inventory data.")
