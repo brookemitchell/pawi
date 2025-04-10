@@ -139,7 +139,6 @@ Okay, here is a thorough todo.md checklist based on our specification and the br
 
 -   [ ] Code review for clarity, comments, and adherence to structure.
 -   [ ] Final check against all requirements in the specification document.
--   [ ] Ensure `requirements.txt` is accurate.
 -   [ ] Add a simple `README.md` explaining how to set up and run the PoC.
 
 
