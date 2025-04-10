@@ -118,7 +118,7 @@ if inventory_df is not None:
         # --- Action Button ---
         if status == "Reorder Needed":
             # Use item_name (which is the index) directly in key and args
-            cols[5].button("Simulate Order",
+            cols[5].button("Order",
                            key=f"order_{item_name}",
                            on_click=simulate_order_callback,
                            args=(item_name,)) # Pass item_name to the callback
