@@ -89,10 +89,31 @@ st.sidebar.button("Advance One Day", on_click=advance_day_callback)
 st.header("Inventory Status")
 
 # Check the inventory DataFrame stored in session state
-if st.session_state['inventory_df'] is not None:
-    # Display the DataFrame from session state
-    st.dataframe(st.session_state['inventory_df'])
-    st.caption(f"Displaying inventory status at the end of Day {current_day}.")
+inventory_df = st.session_state.get('inventory_df', None) # Use .get for safety
+
+if inventory_df is not None:
+    # --- Custom Table Display ---
+    # Define headers
+    col_headers = st.columns(6)
+    headers = ["Item Name", "Qty on Hand", "Reorder Point", "Status", "Rec. Order Qty", "Action"]
+    for col, header in zip(col_headers, headers):
+        col.markdown(f"**{header}**") # Use markdown for bold headers
+
+    st.divider() # Add a visual separator
+
+    # Iterate through the DataFrame rows and display data in columns
+    for item_name, row_data in inventory_df.iterrows():
+        cols = st.columns(6)
+        cols[0].write(item_name)
+        cols[1].write(row_data['quantity_on_hand'])
+        cols[2].write(row_data['reorder_point'])
+        cols[3].write(row_data['status']) # Status text (will be colored later)
+        cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
+        # Placeholder for the action button column
+        cols[5].empty() # Or cols[5].write("")
+
+    st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Keep the caption
+
 else:
     # Display an error message if loading failed during initialization
     st.error("Failed to load inventory data. Please check the database file ('inventory_poc.db') and ensure it's correctly seeded.")
