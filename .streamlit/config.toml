@@ -1,0 +1,18 @@
+[theme]
+# Theme based on Streamlit's default light theme
+base = "light"
+
+# Primary accent color for interactive elements
+primaryColor = "#20B2AA"  # LightSeaGreen - professional but distinct
+
+# Background color for the main content area
+backgroundColor = "#FFFFFF" # White
+
+# Background color for sidebar and most widgets
+secondaryBackgroundColor = "#F0F2F6" # Default light grey
+
+# Text color
+textColor = "#31333F" # Default dark grey
+
+# Font family
+font = "sans serif"
