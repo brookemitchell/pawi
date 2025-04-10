@@ -65,7 +65,7 @@ def load_inventory_data(db_name='inventory_poc.db') -> pd.DataFrame | None:
         conn = sqlite3.connect(db_path)
 
         # Load item parameters
-        params_query = "SELECT * FROM item_parameters;"
+        params_query = "SELECT * FROM inventory_items;"
         item_params_df = pd.read_sql_query(params_query, conn)
 
         if item_params_df.empty:
