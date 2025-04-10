@@ -1,14 +1,11 @@
 # --- Imports ---
 import streamlit as st
 import pandas as pd
-from data_loader import load_inventory_data # Keep this import
+from data_loader import load_inventory_data
 from simulation import advance_day, calculate_status, simulate_order # Import the simulation and status functions
 
 # --- Page Config (Optional but Recommended) ---
-st.set_page_config(
-    page_title="Veterinary Inventory PoC",
-layout="wide"
-)
+st.set_page_config(page_title="Pawfect inventory", layout="wide")
 
 # --- Helper Functions ---
 def update_status_column(df: pd.DataFrame) -> pd.DataFrame:
@@ -56,7 +53,7 @@ def simulate_order_callback(item_name: str):
         st.warning("Inventory data not loaded. Cannot simulate order.")
 
 # --- Title ---
-st.title("Veterinary Inventory PoC")
+st.title("Pawfect inventory")
 
 # --- Session State Initialization ---
 # Check if the inventory DataFrame is already in the session state
