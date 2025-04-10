@@ -79,5 +79,53 @@ def calculate_status(qoh: int, rop: int) -> str:
     else:
         return "OK"
 
+def simulate_order(inventory_df: pd.DataFrame, item_name: str) -> pd.DataFrame:
+    """
+    Simulates placing an order for a specific item, updating its quantity
+    on hand to the target stock level (ROP + RoQ).
+
+    Args:
+        inventory_df: The current inventory status DataFrame.
+                      Must include 'reorder_point', 'reorder_quantity',
+                      and 'quantity_on_hand' columns.
+        item_name: The name (index) of the item to reorder.
+
+    Returns:
+        A new DataFrame with the updated quantity_on_hand for the specified item.
+        Returns the original DataFrame if the item_name is not found or input is invalid.
+    """
+    if inventory_df is None or inventory_df.empty:
+        print("Error: Cannot simulate order on empty or None DataFrame.")
+        return inventory_df
+
+    df = inventory_df.copy() # Work on a copy
+
+    if item_name not in df.index:
+        print(f"Error: Item '{item_name}' not found in inventory DataFrame. Cannot simulate order.")
+        return df # Return the unmodified copy
+
+    try:
+        # Get the item's ROP and RoQ
+        rop = int(df.loc[item_name, 'reorder_point'])
+        roq = int(df.loc[item_name, 'reorder_quantity'])
+
+        # Calculate the target stock level
+        target_stock_level = rop + roq
+
+        # Update the quantity on hand for the item
+        df.loc[item_name, 'quantity_on_hand'] = target_stock_level
+        print(f"Simulated order for '{item_name}'. Quantity on hand set to {target_stock_level}.")
+
+    except KeyError as e:
+        print(f"Error simulating order for {item_name}: Missing expected column {e}.")
+        # Return the unmodified copy if data is missing
+        return inventory_df.copy()
+    except (ValueError, TypeError) as e:
+        print(f"Error simulating order for {item_name}: Invalid data type for calculation ({e}).")
+        # Return the unmodified copy if data is invalid
+        return inventory_df.copy()
+
+    return df
+
 # --- Placeholder for future simulation functions ---
-# def simulate_order(inventory_df, item_name): ...
+# def simulate_order(inventory_df, item_name): ... # <-- Keep or remove this line as desired
