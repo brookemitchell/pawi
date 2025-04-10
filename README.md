@@ -1,8 +1,8 @@
-# 🎈 Blank app template
+# Pawfect inventory
 
-A simple Streamlit app template for you to modify!
+POC of intelligent inventory management system for a diagnostics lab and clinics using diagnostics.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://blank-app-template.streamlit.app/)
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://pawi-app-hvu5ltl52rw.streamlit.app/)
 
 ### How to run it on your own machine
 
@@ -13,26 +13,25 @@ A simple Streamlit app template for you to modify!
     ```
     Then, source the virtual environment:
    $ source venv/bin/activate
-   ```
 
    or on Windows:
 
    ```
     $ python -m venv venv
-    ```
-        Then, activate the virtual environment:
+    ``` 
+2. Then, activate the virtual environment:
     
     ```bash
    $ .\venv\Scripts\activate
    ```
 
-1. Install the requirements
+3. Install the requirements
 
    ```
    $ pip install -r requirements.txt
    ```
 
-1. Run the app
+4. Run the app
 
    ```
    $ streamlit run streamlit_app.py

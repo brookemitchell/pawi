@@ -1,6 +1,8 @@
 import streamlit as st
 
-st.title("🎈 My new app")
-st.write(
-    "Let's start building! For help and inspiration, head over to [docs.streamlit.io](https://docs.streamlit.io/)."
-)
+# Create the SQL connection to inventory_db as specified in your secrets file.
+conn = st.connection('inventory_db', type='sql')
+
+# Query and display the data you inserted
+pet_owners = conn.query('select * from inventory')
+st.dataframe(pet_owners)
