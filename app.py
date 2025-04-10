@@ -107,10 +107,18 @@ if inventory_df is not None:
         cols[0].write(item_name)
         cols[1].write(row_data['quantity_on_hand'])
         cols[2].write(row_data['reorder_point'])
-        cols[3].write(row_data['status']) # Status text (will be colored later)
+        # --- Status Display with Color ---
+        status = row_data['status']
+        if status == "Reorder Needed":
+            cols[3].markdown(f":red[{status}]")
+        elif status == "Low Stock":
+            cols[3].markdown(f":orange[{status}]")
+        elif status == "OK":
+            cols[3].markdown(f":green[{status}]")
+        else: # Fallback for unexpected status values (e.g., "Error")
+            cols[3].write(status)
         cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
         # --- Action Button ---
-        status = row_data['status']
         if status == "Reorder Needed":
             # Use item_name (which is the index) directly in key and args
             cols[5].button("Simulate Order",
