@@ -2,13 +2,31 @@
 import streamlit as st
 import pandas as pd
 from data_loader import load_inventory_data # Keep this import
-from simulation import advance_day # Import the simulation function
+from simulation import advance_day, calculate_status # Import the simulation and status functions
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(
     page_title="Veterinary Inventory PoC",
-    layout="wide"
+layout="wide"
 )
+
+# --- Helper Functions ---
+def update_status_column(df: pd.DataFrame) -> pd.DataFrame:
+    """Calculates and updates the 'status' column of the DataFrame."""
+    if df is None or df.empty:
+        return df
+    # Ensure required columns exist
+    if 'quantity_on_hand' in df.columns and 'reorder_point' in df.columns:
+         # Use .apply to calculate status for each row
+        df['status'] = df.apply(
+            lambda row: calculate_status(row['quantity_on_hand'], row['reorder_point']),
+            axis=1
+        )
+    else:
+        print("Error: Missing 'quantity_on_hand' or 'reorder_point' column for status calculation.")
+        # Optionally add an error status column or handle differently
+        df['status'] = 'Error'
+    return df
 
 # --- Callback Functions ---
 def advance_day_callback():
@@ -17,8 +35,10 @@ def advance_day_callback():
         st.session_state['day_count'] += 1
         # Call the simulation function
         updated_df = advance_day(st.session_state['inventory_df'])
+        # Calculate status AFTER advancing the day
+        final_df = update_status_column(updated_df) # <-- Add this line
         # Update the DataFrame in session state
-        st.session_state['inventory_df'] = updated_df
+        st.session_state['inventory_df'] = final_df # <-- Update with final_df
     else:
         # Optionally handle the case where data isn't loaded
         st.warning("Inventory data not loaded. Cannot advance day.")
@@ -33,9 +53,10 @@ if 'inventory_df' not in st.session_state:
     # Attempt to load data only if it's not already loaded
     loaded_df = load_inventory_data()
     if loaded_df is not None:
-        st.session_state['inventory_df'] = loaded_df
+        # Calculate initial status right after loading
+        st.session_state['inventory_df'] = update_status_column(loaded_df) # <-- Add this line
         st.session_state['day_count'] = 0 # Initialize day count on successful load
-        print("Data loaded successfully into session state.")
+        print("Data loaded and initial status calculated successfully into session state.") # Updated print
     else:
         # Store None if loading failed, to prevent trying again
         st.session_state['inventory_df'] = None
