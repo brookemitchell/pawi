@@ -109,8 +109,16 @@ if inventory_df is not None:
         cols[2].write(row_data['reorder_point'])
         cols[3].write(row_data['status']) # Status text (will be colored later)
         cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
-        # Placeholder for the action button column
-        cols[5].empty() # Or cols[5].write("")
+        # --- Action Button ---
+        status = row_data['status']
+        if status == "Reorder Needed":
+            # Use item_name (which is the index) directly in key and args
+            cols[5].button("Simulate Order",
+                           key=f"order_{item_name}",
+                           on_click=simulate_order_callback,
+                           args=(item_name,)) # Pass item_name to the callback
+        else:
+            cols[5].write("") # Keep the column empty if no action is needed
 
     st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Keep the caption
 
