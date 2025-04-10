@@ -53,6 +53,31 @@ def advance_day(inventory_df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
+def calculate_status(qoh: int, rop: int) -> str:
+    """
+    Calculates the inventory status based on quantity on hand and reorder point.
+
+    Args:
+        qoh: Current quantity on hand.
+        rop: Reorder point.
+
+    Returns:
+        A string indicating the status: "Reorder Needed", "Low Stock", or "OK".
+    """
+    # Ensure inputs are numeric, handle potential errors gracefully
+    try:
+        qoh = int(qoh)
+        rop = int(rop)
+    except (ValueError, TypeError):
+        # Handle cases where inputs might not be numbers (e.g., NaN, None)
+        return "Error" # Or some other indicator of invalid input
+
+    if qoh <= rop:
+        return "Reorder Needed"
+    elif qoh <= rop * 1.25:
+        return "Low Stock"
+    else:
+        return "OK"
+
 # --- Placeholder for future simulation functions ---
-# def calculate_status(qoh, rop): ...
 # def simulate_order(inventory_df, item_name): ...
