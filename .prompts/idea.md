@@ -1630,3 +1630,484 @@ Chunk 4: UI Refinement & Finalization
 
 Does this breakdown into four iterative chunks seem logical and provide a clear path for building the PoC step-by-step?
 
+# Response:
+The app is progressing well, I have completed all the items from the todo.md. I would now like to explore some additional features, I would like to explore the plan to add a feature that helps 'reduce unnecessary waste' by creating expiration alerts with smart discard recommendations. For example different products will have different lifetimes for their storage and storage requirement. How could we plan adding this feature?
+
+>
+> 
+Okay, planning the addition of the Expiry Management feature requires a structured approach as it significantly impacts the existing data model and logic. Here's a plan following the same methodology we used before:
+
+**1. Goal Ingestion & Clarification (Recap & Elaboration)**
+
+*   **Refined Goal:** Enhance the PoC to track inventory batches with specific expiry dates, implement First-Expired, First-Out (FEFO) consumption, simulate receiving new batches with shelf lives, and alert users to items nearing expiration or already expired.
+*   **Pain Point Addressed:** Reducing waste by proactively identifying stock close to its expiry date.
+*   **Key Challenges:**
+    *   Shifting from item-level tracking to batch-level tracking.
+    *   Implementing FEFO logic during consumption simulation.
+    *   Handling date calculations (expiry dates, simulation date).
+    *   Designing UI elements to display batch/expiry information clearly without overwhelming the user.
+*   **Simplifications for PoC v2:**
+    *   We will assume storage conditions are always met (no temperature excursion impact).
+    *   "Smart discard" will simply mean highlighting expired items, not predicting optimal discard times based on forecasts.
+    *   Receiving batches will be simplified: simulating an order adds a new batch with a standard shelf life, rather than requiring manual entry of expiry dates for received goods.
+
+**2. Detailed Blueprint Drafting (Expiry Feature Additions)**
+
+*   **High-level System Architecture:** Remains a Streamlit app using Pandas and SQLite. The core change is the shift to a batch-centric data model.
+*   **Key Functional Components (Updates & Additions):**
+    *   **Data Model:** Transition from a single inventory table to potentially two: `item_parameters` (static info like ROP, RoQ thresholds, shelf life) and `inventory_batches` (dynamic batch info: item name, quantity, expiry date).
+    *   **Data Loader (`data_loader.py`):** Needs updating to read from the new table structure(s).
+    *   **Simulation Engine (`simulation.py`):**
+        *   `advance_day`: Major rewrite to implement FEFO consumption across batches for each item.
+        *   `add_new_batch`: New function to simulate receiving an order, adding a new batch record with a calculated expiry date based on standard shelf life. Replaces the previous simple QoH update logic in `simulate_order`.
+        *   `calculate_expiry_status`: New function to determine if a batch is "OK", "Nearing Expiry", or "Expired" based on the current simulation date.
+    *   **Main Application (`app.py`):**
+        *   **State Management:** Will now need to manage the `batches_df`, `item_params_df`, and the `current_sim_date`.
+        *   **UI Rendering:** The main inventory display needs rethinking. It should likely show *summary* information per item (total QoH, earliest expiry, alert count) derived from the batch data. A separate section for detailed "Expiry Alerts" is needed. The "Simulate Order" button logic remains similar but triggers `add_new_batch`.
+*   **Data Requirements:**
+    *   **New Schema:**
+        *   `item_parameters` (SQLite Table): `item_name` (PK), `min_daily_usage`, `max_daily_usage`, `buffer_days`, `target_days`, `reorder_point` (calculated or stored), `reorder_quantity` (calculated or stored), `standard_shelf_life_months`.
+        *   `inventory_batches` (SQLite Table & Runtime DataFrame): `batch_id` (PK, auto-increment), `item_name` (FK), `quantity_on_hand`, `expiry_date`.
+    *   **Configuration:** Need a system-wide constant for `ALERT_DAYS_BEFORE_EXPIRY` (e.g., 30 days).
+*   **Technology Stack:** No changes (Python, Streamlit, Pandas, SQLite).
+
+**3. Iterative Chunking (Epics/Features for Expiry)**
+
+*   **Chunk E1: Data Model & Foundation Refactor:** Restructure the SQLite database and Pandas DataFrames to support `item_parameters` and `inventory_batches`. Update data loading and adapt the main UI to display basic total QoH derived from batches. *This temporarily breaks ROP/status features.*
+*   **Chunk E2: FEFO Consumption:** Implement the First-Expired, First-Out consumption logic within the `advance_day` simulation, correctly depleting quantities from the appropriate batches.
+*   **Chunk E3: Batch Receiving Simulation:** Implement the `add_new_batch` logic triggered by the "Simulate Order" button, calculating expiry dates based on a standard shelf life per item.
+*   **Chunk E4: Expiry Status Calculation & Alert Display:** Calculate expiry status ("OK", "Nearing", "Expired") for each batch based on the simulation date. Add a dedicated "Expiry Alerts" section to the UI showing problematic batches.
+*   **Chunk E5: UI Integration & Restoration:** Re-integrate ROP/Status checks based on total QoH per item. Enhance the main inventory table to show summary expiry information (e.g., earliest expiry, alert counts) alongside total QoH.
+
+**4. Granular Step Breakdown & Refinement (Expiry Feature)**
+
+**(Chunk E1 Steps - Data Model & Foundation Refactor)**
+
+*   **Step E1.1:** **Define & Create New DB Schema:**
+    *   Modify `inventory_poc.db`.
+    *   Create `item_parameters` table (schema above). Populate with existing item names, usage, buffer/target days, ROP/RoQ (or calculate later). Add a new `standard_shelf_life_months` column (e.g., Parvo=12, Slides=24, etc.).
+    *   Create `inventory_batches` table (schema above: `batch_id` INTEGER PRIMARY KEY AUTOINCREMENT, `item_name` TEXT, `quantity_on_hand` INTEGER, `expiry_date` DATE).
+    *   Populate `inventory_batches` with *one initial batch* per item: Use the `initial_quantity_on_hand` from the previous spec. Calculate an initial `expiry_date` (e.g., `today + standard_shelf_life / 2`).
+*   **Step E1.2:** **Update Data Loader (`data_loader.py`):**
+    *   Modify `load_inventory_data` to load data from *both* `item_parameters` and `inventory_batches` tables.
+    *   Have it return two DataFrames: `item_params_df` (indexed by `item_name`) and `batches_df`.
+*   **Step E1.3:** **Update App State (`app.py`):**
+    *   Modify initial state setup: Load *both* DataFrames into `st.session_state` (`st.session_state['item_params_df']`, `st.session_state['batches_df']`).
+    *   Initialize `st.session_state['current_sim_date']` (e.g., using `datetime.date.today()`).
+*   **Step E1.4:** **Adapt Main Display (Basic) (`app.py`):**
+    *   Modify the main table rendering loop: It should now iterate based on `item_params_df.index` (the item names).
+    *   Inside the loop, calculate `total_qoh = st.session_state['batches_df'][st.session_state['batches_df']['item_name'] == item_name]['quantity_on_hand'].sum()`.
+    *   Display only `Item Name` and the calculated `total_qoh` for now. *Comment out/remove ROP, Status, Rec. RoQ, Action columns temporarily.* The app should run and show items and their total quantities based on the new batch structure.
+
+**(Chunk E2 Steps - FEFO Consumption)**
+
+*   **Step E2.1:** **Implement FEFO Logic (`simulation.py`):**
+    *   Rewrite `advance_day(batches_df, item_params_df, current_sim_date)`:
+        *   Input: Current batches, item parameters, current date.
+        *   Output: Updated batches DataFrame.
+        *   Make a copy of `batches_df`.
+        *   Loop through each `item_name` in `item_params_df`.
+        *   Calculate `daily_consumption` for the item (random int based on min/max usage from `item_params_df`).
+        *   Filter the `batches_df` copy for the current `item_name`.
+        *   Filter out already expired batches (`expiry_date < current_sim_date`).
+        *   Sort these active batches by `expiry_date` ascending (FEFO).
+        *   Iterate through the sorted, active batches:
+            *   If `daily_consumption` > 0:
+                *   `consume_amount = min(daily_consumption, batch_qoh)`
+                *   Update the batch's `quantity_on_hand` in the main DataFrame copy using its `batch_id`.
+                *   `daily_consumption -= consume_amount`
+            *   Else: break inner loop.
+        *   After iterating, remove rows from the DataFrame copy where `quantity_on_hand <= 0`.
+    *   Return the updated DataFrame copy.
+*   **Step E2.2:** **Integrate FEFO into App (`app.py`):**
+    *   Update `advance_day_callback`:
+        *   Increment `st.session_state['current_sim_date']` by one day (`timedelta(days=1)`).
+        *   Call the new `advance_day` function, passing the required DataFrames and the *new* `current_sim_date`.
+        *   Update `st.session_state['batches_df']` with the result.
+    *   Verify that clicking "Advance One Day" correctly reduces the total QoH displayed in the adapted main table (E1.4).
+
+**(Chunk E3 Steps - Batch Receiving Simulation)**
+
+*   **Step E3.1:** **Implement Batch Addition (`simulation.py`):**
+    *   Create `add_new_batch(batches_df, item_params_df, item_name, current_sim_date)` function:
+        *   Input: Current batches, item params, item name to order, current date.
+        *   Output: Updated batches DataFrame.
+        *   Make a copy of `batches_df`.
+        *   Get `shelf_life = item_params_df.loc[item_name, 'standard_shelf_life_months']`.
+        *   Get `quantity_to_add = item_params_df.loc[item_name, 'reorder_quantity']`. (Assuming RoQ is stored/calculable here).
+        *   Calculate `expiry_date = current_sim_date + pd.DateOffset(months=shelf_life)`. Ensure this results in a date/datetime object compatible with the column.
+        *   Create a new dictionary or DataFrame row: `{'item_name': item_name, 'quantity_on_hand': quantity_to_add, 'expiry_date': expiry_date}`.
+        *   Use `pd.concat` to append this new row to the DataFrame copy. **Important:** Ensure the index is handled correctly (e.g., `ignore_index=True` if not using `batch_id` from DB yet, or ensure `batch_id` is managed if applicable). For simplicity, maybe focus on the runtime DataFrame manipulation first.
+    *   Return the updated DataFrame copy.
+*   **Step E3.2:** **Update Order Callback (`app.py`):**
+    *   Modify `simulate_order_callback(item_name)`:
+        *   Call `add_new_batch`, passing the required DataFrames, `item_name`, and the `current_sim_date`.
+        *   Update `st.session_state['batches_df']` with the result.
+    *   *Note: The button triggering this is still commented out from E1.4. We are just updating the callback function for now.*
+
+**(Chunk E4 Steps - Expiry Status Calculation & Alert Display)**
+
+*   **Step E4.1:** **Define Alert Constant (`app.py` or `simulation.py`):**
+    *   `ALERT_DAYS_BEFORE_EXPIRY = 30`
+*   **Step E4.2:** **Implement Status Calculation (`simulation.py`):**
+    *   Create `calculate_expiry_status(expiry_date, current_date, alert_days)` function:
+        *   Returns "Expired" if `expiry_date < current_date`.
+        *   Returns "Nearing Expiry" if `current_date <= expiry_date < current_date + pd.Timedelta(days=alert_days)`.
+        *   Returns "OK" otherwise.
+        *   Handle potential NaT/None expiry dates gracefully (return "Unknown" or "OK").
+*   **Step E4.3:** **Calculate Status Column (`app.py`):**
+    *   Define `update_expiry_status_column(batches_df, current_sim_date, alert_days)` function.
+    *   Uses `df.apply()` to create/update an `expiry_status` column in the `batches_df` by calling `calculate_expiry_status`.
+    *   Call this function *after* initial load, *after* `advance_day`, and *after* `add_new_batch` to ensure the status is always current. Store the result back in `st.session_state['batches_df']`.
+*   **Step E4.4:** **Add Expiry Alerts UI (`app.py`):**
+    *   Below the main inventory table, add a new section: `st.subheader("Expiry Alerts")`.
+    *   Filter `st.session_state['batches_df']` for rows where `expiry_status` is "Nearing Expiry" or "Expired".
+    *   Select relevant columns for display (e.g., `item_name`, `quantity_on_hand`, `expiry_date`, `expiry_status`).
+    *   Display this filtered data using `st.dataframe()`. Apply styling later if needed.
+
+**(Chunk E5 Steps - UI Integration & Restoration)**
+
+*   **Step E5.1:** **Calculate Summary Info (`app.py`):**
+    *   In the main table rendering loop (iterating by `item_name`):
+        *   Filter `batches_df` for the current item.
+        *   Calculate `total_qoh` (already done).
+        *   Calculate `earliest_expiry = filtered_batches['expiry_date'].min()`. Format nicely (e.g., `strftime('%Y-%m-%d')`, handle NaT).
+        *   Calculate `nearing_expiry_count = filtered_batches[filtered_batches['expiry_status'] == 'Nearing Expiry'].shape[0]`
+        *   Calculate `expired_count = filtered_batches[filtered_batches['expiry_status'] == 'Expired'].shape[0]`
+*   **Step E5.2:** **Enhance Main Table (`app.py`):**
+    *   Adapt the `st.columns` layout: Add columns for "Earliest Expiry" and "Alerts" (Nearing/Expired Counts). Adjust column count/widths as needed.
+    *   Display the calculated summary info (`earliest_expiry`, counts) in the new columns.
+    *   Use conditional formatting/icons in the "Alerts" column (e.g., ":warning:" if nearing > 0, ":x:" if expired > 0).
+*   **Step E5.3:** **Re-integrate ROP/Status/Ordering (`app.py`):**
+    *   Calculate the overall item `status` (OK, Low, Reorder) based on `total_qoh` vs `item_params_df.loc[item_name, 'reorder_point']`. (Reuse `calculate_status` logic from previous PoC).
+    *   Display this overall status (with colors) in the main table.
+    *   Display the `reorder_point` from `item_params_df`.
+    *   Display the `reorder_quantity` (RoQ) from `item_params_df` in the "Rec. Order Qty" column.
+    *   Re-enable the conditional "Simulate Order" button in the "Action" column, based on the overall item status being "Reorder Needed". Ensure it correctly calls `simulate_order_callback(item_name)`.
+
+*Refinement Check:* This breakdown introduces complexity incrementally. E1 is a major structural change. E2 (FEFO) is logically complex. E3 adds the receiving simulation. E4 brings in the core expiry alerting. E5 integrates everything back into a cohesive UI. The steps feel like manageable development units, though E1 and E2 require careful implementation and testing due to the core logic changes. This plan provides a clear path forward for adding the expiry management feature.
+
+## Response:
+Draft a detailed, step-by-step blueprint for adding this Expiry Management feature based on the Expiry Management spec. Then, once you have a solid plan, break it down into small, iterative chunks that build on each other. Look at these chunks and then go another round to break it into small steps. review the results and make sure that the steps are small enough to be implemented safely, but big enough to move the project forward. Iterate until you feel that the steps are right sized for this project.
+
+From here you should have the foundation to provide a series of prompts for a code-generation LLM that will implement each step. Prioritize best practices, and incremental progress, ensuring no big jumps in complexity at any stage. Make sure that each prompt builds on the previous prompts, and ends with wiring things together. There should be no hanging or orphaned code that isn't integrated into a previous step.
+
+Make sure and separate each prompt section. Use markdown. Each prompt should be tagged as text using code tags. The goal is to output prompts, but context, etc is important as well.
+
+>
+> Okay, let's generate the LLM prompts for implementing the Expiry Management feature, following the detailed plan and iterative breakdown we established.
+
+**Phase 0: Preparation (Manual Task - Not an LLM Prompt)**
+
+*   **Task:** Modify the existing `inventory_poc.db` SQLite database.
+    *   **Rename:** Rename the existing `inventory_items` table to `_backup_inventory_items` (or similar).
+    *   **Create:** Create the new `item_parameters` table.
+        *   Schema: `item_name` TEXT PRIMARY KEY, `min_daily_usage` INTEGER, `max_daily_usage` INTEGER, `buffer_days` INTEGER, `target_days` INTEGER, `reorder_point` INTEGER, `reorder_quantity` INTEGER, `standard_shelf_life_months` INTEGER.
+    *   **Create:** Create the new `inventory_batches` table.
+        *   Schema: `batch_id` INTEGER PRIMARY KEY AUTOINCREMENT, `item_name` TEXT, `quantity_on_hand` INTEGER, `expiry_date` DATE.
+    *   **Populate `item_parameters`:** Copy `item_name`, `min_daily_usage`, `max_daily_usage`, `buffer_days`, `target_days`, `reorder_point`, `reorder_quantity` from the backup table. Add a `standard_shelf_life_months` value for each item (e.g., 12, 18, 24 - choose sensible defaults).
+    *   **Populate `inventory_batches`:** For each item in `item_parameters`, insert one initial batch row into `inventory_batches`. Use the `initial_quantity_on_hand` from the *original spec* (e.g., Parvo=12, Blood Cartridges=105). Calculate an `expiry_date` for each initial batch (e.g., Today + `standard_shelf_life_months / 2`).
+
+*(This manual database work prepares the foundation for the code changes)*
+
+---
+
+**Prompt E1.1: Update Data Loader for New Schema**
+
+```text
+Objective: Modify the data loading function to read from the new two-table database schema (`item_parameters` and `inventory_batches`).
+
+Context: The SQLite database (`inventory_poc.db`) has been restructured. We previously had a `load_inventory_data` function in `data_loader.py` that read from a single table. We need to update it to read from the new `item_parameters` and `inventory_batches` tables and return two separate DataFrames.
+
+Task:
+Modify `data_loader.py`:
+1.  Update the `load_inventory_data(db_path='inventory_poc.db')` function.
+2.  Inside the function (within the `try` block):
+    *   Query `SELECT * FROM item_parameters;`. Load the result into a Pandas DataFrame called `item_params_df`. Set `item_name` as the index for `item_params_df`.
+    *   Query `SELECT batch_id, item_name, quantity_on_hand, expiry_date FROM inventory_batches;`. Load the result into a Pandas DataFrame called `batches_df`.
+    *   **Crucially:** Convert the `expiry_date` column in `batches_df` to datetime objects using `pd.to_datetime(batches_df['expiry_date'])`. Handle potential errors during conversion if necessary (e.g., `errors='coerce'`).
+    *   Set `batch_id` as the index for `batches_df`.
+3.  Modify the function to return *both* DataFrames: `return item_params_df, batches_df`.
+4.  Update the `except` block to handle potential errors during either query and return `None, None`.
+
+Provide the complete updated content for `data_loader.py`.
+```
+
+---
+
+**Prompt E1.2: Adapt App State & Basic Display**
+
+```text
+Objective: Update the main Streamlit app (`app.py`) to use the new data loader, manage the two DataFrames and a simulation date in session state, and display a basic table showing total quantity per item.
+
+Context: Building on Prompt E1.1, `data_loader.py` now returns two DataFrames (`item_params_df`, `batches_df`). We need to store these in session state, add a simulation date, and adapt the UI to show total quantity per item (temporarily removing ROP/Status/Action features).
+
+Task:
+Modify `app.py`:
+1.  Import `datetime` from `datetime`.
+2.  Update the initial state setup logic (`if 'inventory_df' not in st.session_state:` block needs changing):
+    *   Check if `'item_params_df'` is *not* in `st.session_state`.
+    *   If not present:
+        *   Call `item_params_df, batches_df = load_inventory_data()`.
+        *   Store both DataFrames: `st.session_state['item_params_df'] = item_params_df` and `st.session_state['batches_df'] = batches_df`.
+        *   Initialize the simulation date: `st.session_state['current_sim_date'] = datetime.date.today()`.
+        *   Initialize `st.session_state['day_count'] = 0`.
+3.  Update the main display logic:
+    *   Check if `st.session_state['item_params_df']` and `st.session_state['batches_df']` are valid (not None).
+    *   If valid:
+        *   Display the simulation date prominently (e.g., `st.metric("Current Simulation Date", st.session_state['current_sim_date'].strftime('%Y-%m-%d'))`). (Keep the Day Counter metric in the sidebar).
+        *   Modify the table rendering loop:
+            *   Iterate through items using `st.session_state['item_params_df'].index`.
+            *   Inside the loop, get the `item_name`.
+            *   Filter the batches: `item_batches = st.session_state['batches_df'][st.session_state['batches_df']['item_name'] == item_name]`.
+            *   Calculate `total_qoh = item_batches['quantity_on_hand'].sum()`.
+            *   Use `st.columns()` to display only the `item_name` (index) and the calculated `total_qoh`. Adjust column count accordingly (e.g., `cols = st.columns(2)`).
+            *   **Remove or comment out** the display logic for ROP, Status, Rec. RoQ, and the Action column/button for now.
+            *   Update table headers to reflect the simplified columns (Item Name, Total QoH).
+    *   If loading failed, display the error message `st.error(...)`.
+4.  **Temporarily disable or comment out** the existing callbacks (`advance_day_callback`, `simulate_order_callback`) and the buttons that trigger them, as the underlying logic is incompatible until updated.
+
+Provide the complete updated content for `app.py`.
+```
+
+---
+
+**Prompt E2.1: Implement FEFO Consumption Logic**
+
+```text
+Objective: Implement the First-Expired, First-Out (FEFO) consumption logic in the simulation engine.
+
+Context: Building on E1.2, the app displays total quantities. We need to rewrite the `advance_day` function in `simulation.py` to correctly consume stock from the earliest expiring batches first, using the new data structures.
+
+Task:
+Modify `simulation.py`:
+1.  Import `datetime` from `datetime` and `pandas as pd` (if not already).
+2.  **Replace** the existing `advance_day` function with a new version:
+    `advance_day(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, current_sim_date: datetime.date) -> pd.DataFrame:`
+3.  Inside the new function:
+    *   Create a copy: `df_copy = batches_df.copy()`.
+    *   Iterate through each `item_name` in `item_params_df.index`.
+    *   Get `min_usage` and `max_usage` for the item from `item_params_df`.
+    *   Calculate `daily_consumption = random.randint(min_usage, max_usage)`.
+    *   If `daily_consumption == 0`, continue to the next item.
+    *   Filter `df_copy` for active batches of the current item:
+        *   `item_batches_idx = df_copy[(df_copy['item_name'] == item_name) & (df_copy['quantity_on_hand'] > 0) & (df_copy['expiry_date'] >= current_sim_date)].index`
+    *   If no active batches found (`item_batches_idx.empty`), continue to the next item.
+    *   Sort these active batches by expiry date: `sorted_batches = df_copy.loc[item_batches_idx].sort_values(by='expiry_date')`.
+    *   Iterate through the `sorted_batches.iterrows()`:
+        *   Get the `batch_index` and `batch_data`.
+        *   `batch_qoh = batch_data['quantity_on_hand']`.
+        *   `consume_amount = min(daily_consumption, batch_qoh)`.
+        *   Update the quantity in the *main copy* (`df_copy`): `df_copy.loc[batch_index, 'quantity_on_hand'] -= consume_amount`.
+        *   `daily_consumption -= consume_amount`.
+        *   If `daily_consumption <= 0`, break the inner loop (consumption for this item is done).
+    *   After iterating through items, remove batches with zero quantity: `df_copy = df_copy[df_copy['quantity_on_hand'] > 0]`.
+4.  Return the final modified `df_copy`.
+5. Keep the `calculate_status` function (from previous PoC) for now, although it's not used yet.
+
+Provide the complete updated content for `simulation.py`.
+```
+
+---
+
+**Prompt E2.2: Integrate FEFO Simulation into App**
+
+```text
+Objective: Re-enable the "Advance One Day" button and connect it to the new FEFO `advance_day` simulation logic.
+
+Context: Building on E2.1, we have the FEFO consumption logic in `simulation.py`. We need to update the callback in `app.py` to use it and update the simulation date and batch state.
+
+Task:
+Modify `app.py`:
+1.  Import the updated `advance_day` function from `simulation`.
+2.  **Re-enable/uncomment** the `advance_day_callback()` function definition.
+3.  Modify the `advance_day_callback()` function:
+    *   Check if `st.session_state['item_params_df']` and `st.session_state['batches_df']` are valid.
+    *   Increment `st.session_state['day_count']` by 1.
+    *   Increment `st.session_state['current_sim_date']` by `datetime.timedelta(days=1)`.
+    *   Call the new simulation logic:
+        `updated_batches_df = advance_day(st.session_state['batches_df'], st.session_state['item_params_df'], st.session_state['current_sim_date'])`
+    *   Update the batch state: `st.session_state['batches_df'] = updated_batches_df`.
+4.  **Re-enable/uncomment** the `st.sidebar.button("Advance One Day", ...)` line to make the button appear and trigger the callback.
+5.  Keep the `simulate_order_callback` function and its button commented out/disabled.
+
+Provide the complete updated content for `app.py`. Ensure the app runs, the button advances the date, and the total QoH values decrease based on the new FEFO logic.
+```
+
+---
+
+**Prompt E3.1: Implement Batch Addition Logic**
+
+```text
+Objective: Implement the logic in `simulation.py` to add a new batch when an order is simulated.
+
+Context: Building on E2.2, the FEFO simulation runs. Now we need the function to handle adding a new batch with a calculated expiry date based on the item's standard shelf life.
+
+Task:
+Modify `simulation.py`:
+1.  Import `pandas as pd` and `datetime` if not already present.
+2.  **Replace** the old `simulate_order` function (if it still exists from the previous PoC) with a new function:
+    `add_new_batch(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, item_name: str, current_sim_date: datetime.date) -> pd.DataFrame:`
+3.  Inside the function:
+    *   Create a copy: `df_copy = batches_df.copy()`.
+    *   Check if `item_name` exists in `item_params_df.index`. If not, return `df_copy` unchanged.
+    *   Get parameters from `item_params_df.loc[item_name]`: `shelf_life_months`, `reorder_quantity`.
+    *   Calculate `expiry_date = current_sim_date + pd.DateOffset(months=int(shelf_life_months))`. Ensure `shelf_life_months` is treated as an integer. Convert the result to a standard date object if necessary (`expiry_date.date()` if it becomes a Timestamp).
+    *   Create a dictionary for the new batch: `new_batch_data = {'item_name': item_name, 'quantity_on_hand': reorder_quantity, 'expiry_date': expiry_date}`.
+    *   Convert the dictionary to a DataFrame: `new_batch_df = pd.DataFrame([new_batch_data])`.
+    *   Append the new batch to the copy: `df_copy = pd.concat([df_copy.reset_index(), new_batch_df], ignore_index=True)`. **Important:** Reset index before concat and use `ignore_index=True` to avoid index conflicts and allow the database to handle `batch_id` on actual persistence (which we aren't doing in this step). Re-establish an index if needed, perhaps just a default integer index for runtime (`df_copy.set_index('batch_id', drop=False)` if you kept `batch_id` column, or just let concat manage it). *Let's keep it simple for now: reset index on concat.*
+4.  Return the updated `df_copy`.
+
+Provide the complete updated content for `simulation.py`.
+```
+
+---
+
+**Prompt E3.2: Update Order Callback Function**
+
+```text
+Objective: Update the `simulate_order_callback` function in `app.py` to use the new `add_new_batch` logic.
+
+Context: Building on E3.1, we have the `add_new_batch` function. We need to update the corresponding callback in `app.py` (though the button itself is still disabled).
+
+Task:
+Modify `app.py`:
+1.  Import the `add_new_batch` function from `simulation`.
+2.  **Re-enable/uncomment** the `simulate_order_callback(item_name: str)` function definition.
+3.  Modify the `simulate_order_callback` function:
+    *   Check if `st.session_state['item_params_df']` and `st.session_state['batches_df']` are valid.
+    *   Call the batch addition logic:
+        `updated_batches_df = add_new_batch(st.session_state['batches_df'], st.session_state['item_params_df'], item_name, st.session_state['current_sim_date'])`
+    *   Update the batch state: `st.session_state['batches_df'] = updated_batches_df`.
+4.  Keep the actual "Simulate Order" button in the UI commented out/disabled.
+
+Provide the complete updated content for `app.py`.
+```
+
+---
+
+**Prompt E4.1: Implement Expiry Status Calculation**
+
+```text
+Objective: Implement the logic to determine the expiry status ("OK", "Nearing Expiry", "Expired") for each batch.
+
+Context: Building on E3.2, we can simulate consumption and ordering affecting batches. Now we need to calculate the expiry status based on the current simulation date.
+
+Task:
+1.  In `simulation.py`:
+    *   Import `datetime` and `pandas` if needed.
+    *   Define a constant near the top: `ALERT_DAYS_BEFORE_EXPIRY = 30`.
+    *   Create the function `calculate_expiry_status(expiry_date, current_date, alert_days=ALERT_DAYS_BEFORE_EXPIRY) -> str`:
+        *   Handle potential `NaT` or `None` expiry dates: return "Unknown" or "OK".
+        *   Convert `current_date` to datetime if it's not already, for comparison. Ensure `expiry_date` is also comparable (they should be from the `pd.to_datetime` conversion earlier).
+        *   If `expiry_date < current_date`, return "Expired".
+        *   Calculate `alert_date = current_date + datetime.timedelta(days=alert_days)`.
+        *   If `current_date <= expiry_date < alert_date`, return "Nearing Expiry".
+        *   Otherwise, return "OK".
+2.  In `app.py`:
+    *   Import `calculate_expiry_status` and `ALERT_DAYS_BEFORE_EXPIRY` from `simulation`.
+    *   Define a helper function `update_expiry_status_column(batches_df: pd.DataFrame) -> pd.DataFrame`:
+        *   Check if `batches_df` is None or empty; if so, return it.
+        *   Ensure the 'expiry_date' column is in datetime format.
+        *   Get `current_sim_date = st.session_state['current_sim_date']`.
+        *   Apply the `calculate_expiry_status` function to create/update an `expiry_status` column:
+            `df['expiry_status'] = df.apply(lambda row: calculate_expiry_status(row['expiry_date'], current_sim_date, ALERT_DAYS_BEFORE_EXPIRY), axis=1)`
+        *   Return the DataFrame with the new/updated column.
+    *   Modify the app logic to call `update_expiry_status_column`:
+        *   Call it *after* initial load and storing `batches_df` in session state.
+        *   Call it *inside* `advance_day_callback` after `advance_day` returns the updated `batches_df`.
+        *   Call it *inside* `simulate_order_callback` after `add_new_batch` returns the updated `batches_df`.
+        *   Make sure the result is stored back into `st.session_state['batches_df']` in all cases.
+
+Provide the updated content for `simulation.py` and `app.py`.
+```
+
+---
+
+**Prompt E4.2: Add Expiry Alerts UI Section**
+
+```text
+Objective: Add a new section to the Streamlit UI displaying batches that are nearing expiry or expired.
+
+Context: Building on E4.1, the `batches_df` in session state now contains an `expiry_status` column. We need to display alerts based on this.
+
+Task:
+Modify `app.py`:
+1.  In the main UI rendering section (after the main inventory table loop):
+    *   Add a subheader: `st.subheader("Expiry Alerts")`.
+    *   Check if `st.session_state['batches_df']` is valid.
+    *   Filter the DataFrame:
+        `alerts_df = st.session_state['batches_df'][st.session_state['batches_df']['expiry_status'].isin(['Nearing Expiry', 'Expired'])]`
+    *   Check if `alerts_df` is empty.
+        *   If empty, display a message: `st.info("No items currently nearing expiry or expired.")`
+        *   If not empty:
+            *   Select and potentially rename columns for display: `display_df = alerts_df[['item_name', 'quantity_on_hand', 'expiry_date', 'expiry_status']]`. Format the `expiry_date` column as string (`strftime('%Y-%m-%d')`) for cleaner display in the table.
+            *   Display the filtered data: `st.dataframe(display_df)`. (Consider `st.data_editor` if simple editing were needed later, but `st.dataframe` is fine for display). Add conditional formatting later if desired.
+
+Provide the complete updated content for `app.py`.
+```
+
+---
+
+**Prompt E5.1: Enhance Main Table with Expiry Summary**
+
+```text
+Objective: Enhance the main inventory table to include summary expiry information (earliest expiry date, count of nearing/expired batches) for each item.
+
+Context: Building on E4.2, we have the expiry alerts section. Now we need to integrate summary expiry info into the main item overview table.
+
+Task:
+Modify `app.py` within the main table rendering loop (where it iterates through `item_params_df.index`):
+1.  Inside the loop (after filtering `item_batches` for the current `item_name`):
+    *   Calculate summary statistics from `item_batches`:
+        *   `earliest_expiry_date = item_batches['expiry_date'].min()`
+        *   `nearing_count = item_batches[item_batches['expiry_status'] == 'Nearing Expiry'].shape[0]`
+        *   `expired_count = item_batches[item_batches['expiry_status'] == 'Expired'].shape[0]`
+    *   Format the `earliest_expiry_date` for display (e.g., `strftime('%Y-%m-%d')`, handle `NaT` by displaying "N/A" or "-").
+    *   Create an alert summary string or use icons:
+        *   `alert_text = []`
+        *   `if nearing_count > 0: alert_text.append(f":warning: {nearing_count} Nearing")`
+        *   `if expired_count > 0: alert_text.append(f":x: {expired_count} Expired")`
+        *   `alert_display = " / ".join(alert_text) if alert_text else ":heavy_check_mark:"` (or similar visual representation)
+2.  Modify the `st.columns()` setup for the main table rows to add columns for "Earliest Expiry" and "Alerts". Adjust the total column count.
+3.  Display the calculated `earliest_expiry_date` (formatted string) and `alert_display` string/icons in their respective new columns within the loop.
+4.  Update the table headers (`st.columns` outside the loop) to include the new column names.
+
+Provide the complete updated content for `app.py`.
+```
+
+---
+
+**Prompt E5.2: Restore ROP/Status/Ordering Functionality**
+
+```text
+Objective: Re-integrate the overall item status calculation (OK/Low/Reorder), display ROP/Rec. RoQ, and re-enable the conditional "Simulate Order" button in the main table.
+
+Context: Building on E5.1, the main table shows expiry summaries. Now we restore the original stockout prevention features based on the total quantity per item.
+
+Task:
+Modify `app.py`:
+1.  Import the original `calculate_status` function from `simulation` (ensure it's still there from Prompt E2.1 or re-add if needed).
+2.  Inside the main table rendering loop (iterating by `item_name`):
+    *   Retrieve `rop = st.session_state['item_params_df'].loc[item_name, 'reorder_point']`.
+    *   Retrieve `roq = st.session_state['item_params_df'].loc[item_name, 'reorder_quantity']`.
+    *   Calculate the overall item status using the `total_qoh` (calculated in E1.4/E5.1) and the retrieved `rop`: `item_status = calculate_status(total_qoh, rop)`.
+    *   Modify the `st.columns()` layout for the main table rows again. Ensure columns exist for: Item Name, Total QoH, ROP, Status (Overall), Earliest Expiry, Alerts, Rec. Order Qty, Action. Adjust count/widths.
+    *   Display the retrieved `rop` in the 'ROP' column.
+    *   Display the calculated `item_status` in the 'Status' column, applying the Red/Orange/Green coloring logic from the original PoC (using `st.markdown`).
+    *   Display the retrieved `roq` in the 'Rec. Order Qty' column.
+    *   Re-enable the conditional 'Action' button:
+        *   `if item_status == "Reorder Needed":`
+            *   `cols[ACTION_COLUMN_INDEX].button("Simulate Order", key=f"order_{item_name}", on_click=simulate_order_callback, args=(item_name,))`
+        *   `else: cols[ACTION_COLUMN_INDEX].write("")`
+3.  Update the table headers (`st.columns` outside the loop) to reflect all columns accurately.
+
+Provide the complete updated content for `app.py`. This should result in the fully functional application incorporating both stockout prevention and expiry management features.
+```
+
+---
+
+This sequence of prompts systematically builds the expiry management feature, starting with data structure changes and layering on logic and UI elements incrementally, mirroring the refined step-by-step plan.
+
+# Response
+That's a great prompt plan, can you also update todo.md checklist with the new tasks
