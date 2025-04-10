@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 from data_loader import load_inventory_data # Keep this import
-from simulation import advance_day, calculate_status # Import the simulation and status functions
+from simulation import advance_day, calculate_status, simulate_order # Import the simulation and status functions
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(
@@ -42,6 +42,18 @@ def advance_day_callback():
     else:
         # Optionally handle the case where data isn't loaded
         st.warning("Inventory data not loaded. Cannot advance day.")
+
+def simulate_order_callback(item_name: str):
+    """Callback function to simulate placing an order for a specific item."""
+    if 'inventory_df' in st.session_state and st.session_state['inventory_df'] is not None:
+        # Call the order simulation function
+        ordered_df = simulate_order(st.session_state['inventory_df'], item_name)
+        # Recalculate status for the entire DataFrame after the order
+        final_df = update_status_column(ordered_df)
+        # Update the DataFrame in session state
+        st.session_state['inventory_df'] = final_df
+    else:
+        st.warning("Inventory data not loaded. Cannot simulate order.")
 
 # --- Title ---
 st.title("Veterinary Inventory PoC")
