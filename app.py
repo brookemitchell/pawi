@@ -2,12 +2,26 @@
 import streamlit as st
 import pandas as pd
 from data_loader import load_inventory_data # Keep this import
+from simulation import advance_day # Import the simulation function
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(
     page_title="Veterinary Inventory PoC",
     layout="wide"
 )
+
+# --- Callback Functions ---
+def advance_day_callback():
+    """Callback function to advance the simulation by one day."""
+    if 'inventory_df' in st.session_state and st.session_state['inventory_df'] is not None:
+        st.session_state['day_count'] += 1
+        # Call the simulation function
+        updated_df = advance_day(st.session_state['inventory_df'])
+        # Update the DataFrame in session state
+        st.session_state['inventory_df'] = updated_df
+    else:
+        # Optionally handle the case where data isn't loaded
+        st.warning("Inventory data not loaded. Cannot advance day.")
 
 # --- Title ---
 st.title("Veterinary Inventory PoC")
@@ -34,6 +48,9 @@ st.sidebar.header("Simulation Controls")
 # Use .get() to provide a default value if state isn't fully initialized yet
 current_day = st.session_state.get('day_count', 0)
 st.sidebar.metric("Simulation Day", current_day)
+
+# Add the button to trigger the simulation step
+st.sidebar.button("Advance One Day", on_click=advance_day_callback)
 
 # --- Main Area: Display Data or Error ---
 st.header("Inventory Status")
