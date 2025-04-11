@@ -14,7 +14,7 @@ CREATE TABLE inventory_items (
 -- Create the inventory_batches table schema
 DROP TABLE IF EXISTS inventory_batches;
 CREATE TABLE inventory_batches (
-    batch_id INTEGER PRIMARY KEY AUTOINCREMENT, -- Use AUTOINCREMENT for unique IDs
+    batch_id INTEGER PRIMARY KEY, -- INTEGER PRIMARY KEY is auto-incrementing by default
     item_name TEXT NOT NULL,
     quantity_on_hand INTEGER NOT NULL,
     expiry_date DATE, -- Store expiry date as DATE
