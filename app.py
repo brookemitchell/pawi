@@ -1,9 +1,10 @@
 # --- Imports ---
 import streamlit as st
 import pandas as pd
-from datetime import date # Import date
+from datetime import date, timedelta # Import date and timedelta
 from data_loader import load_inventory_data
-# from simulation import advance_day, calculate_status, simulate_order # Comment out unused imports for now
+from simulation import advance_day # Import the new advance_day function
+# from simulation import calculate_status, simulate_order # Keep others commented for now
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(page_title="Pawfect inventory", layout="wide")
@@ -26,19 +27,29 @@ st.set_page_config(page_title="Pawfect inventory", layout="wide")
 #         df['status'] = 'Error'
 #     return df
 
-# --- Callback Functions (Temporarily Disabled) ---
-# def advance_day_callback():
-#     """Callback function to advance the simulation by one day."""
-#     if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None:
-#         st.session_state['day_count'] += 1
-#         # Call the simulation function (Needs update for new data model)
-#         # updated_batches_df = advance_day(st.session_state['batches_df'], st.session_state['item_params_df'], st.session_state['current_sim_date'])
-#         # Update the DataFrame in session state
-#         # st.session_state['batches_df'] = updated_batches_df
-#         pass # Placeholder
-#     else:
-#         # Optionally handle the case where data isn't loaded
-#         st.warning("Inventory data not loaded. Cannot advance day.")
+# --- Callback Functions ---
+def advance_day_callback():
+    """Callback function to advance the simulation by one day using FEFO."""
+    if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None \
+       and 'batches_df' in st.session_state and st.session_state['batches_df'] is not None \
+       and 'current_sim_date' in st.session_state:
+
+        st.session_state['day_count'] += 1
+        # Increment the simulation date
+        st.session_state['current_sim_date'] += timedelta(days=1)
+
+        # Call the new simulation function with FEFO logic
+        updated_batches_df = advance_day(
+            st.session_state['batches_df'],
+            st.session_state['item_params_df'],
+            st.session_state['current_sim_date']
+        )
+        # Update the batches DataFrame in session state
+        st.session_state['batches_df'] = updated_batches_df
+        print(f"Advanced to Day {st.session_state['day_count']}, Sim Date: {st.session_state['current_sim_date']}") # Debug print
+    else:
+        # Handle the case where data isn't loaded or state is incomplete
+        st.warning("Inventory data not fully loaded or session state incomplete. Cannot advance day.")
 
 # def simulate_order_callback(item_name: str):
 #     """Callback function to simulate placing an order for a specific item."""
@@ -80,8 +91,8 @@ st.sidebar.header("Simulation Controls")
 current_day = st.session_state.get('day_count', 0)
 st.sidebar.metric("Simulation Day", current_day)
 
-# Add the button to trigger the simulation step (Temporarily Disabled)
-# st.sidebar.button("Advance One Day", on_click=advance_day_callback)
+# Add the button to trigger the simulation step
+st.sidebar.button("Advance One Day", on_click=advance_day_callback)
 
 # --- Main Area: Display Data or Error ---
 st.header("Inventory Status")
