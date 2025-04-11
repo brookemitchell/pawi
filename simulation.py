@@ -256,3 +256,30 @@ def add_new_batch(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, item_n
         return df_copy
 
 # --- Placeholder for future simulation functions ---
+
+def discard_batch(batches_df: pd.DataFrame, batch_id_to_discard) -> pd.DataFrame:
+    """
+    Removes a specific batch from the inventory batches DataFrame.
+
+    Args:
+        batches_df: The current DataFrame of inventory batches.
+                    Expected to have 'batch_id' as its index.
+        batch_id_to_discard: The index (batch_id) of the batch to remove.
+
+    Returns:
+        A new DataFrame with the specified batch removed. Returns the
+        original DataFrame if inputs are invalid or the batch_id is not found.
+    """
+    if batches_df is None or batch_id_to_discard is None:
+        print("Error: Invalid input to discard_batch (DataFrame or batch_id is None).")
+        return batches_df
+
+    df_copy = batches_df.copy()
+
+    if batch_id_to_discard in df_copy.index:
+        df_copy = df_copy.drop(index=batch_id_to_discard, errors='ignore') # errors='ignore' is belt-and-suspenders
+        print(f"Discarded batch with ID: {batch_id_to_discard}")
+    else:
+        print(f"Warning: Batch ID {batch_id_to_discard} not found in DataFrame index. No batch discarded.")
+
+    return df_copy
