@@ -181,6 +181,34 @@ if item_params_df is not None and batches_df is not None:
 
     # st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Caption removed/modified
 
+    st.divider() # Add separator before the alerts section
+
+    # --- Expiry Alerts Section ---
+    st.subheader("Expiry Alerts")
+    if batches_df is not None and 'expiry_status' in batches_df.columns:
+        # Filter for alerts
+        alerts_df = batches_df[batches_df['expiry_status'].isin(['Nearing Expiry', 'Expired'])]
+
+        if alerts_df.empty:
+            st.info("No items currently nearing expiry or expired.")
+        else:
+            # Select and format columns for display
+            display_df = alerts_df[['item_name', 'quantity_on_hand', 'expiry_date', 'expiry_status']].copy() # Work on copy
+            # Format date for display - ensure it's datetime first
+            if pd.api.types.is_datetime64_any_dtype(display_df['expiry_date']):
+                 display_df['expiry_date'] = display_df['expiry_date'].dt.strftime('%Y-%m-%d')
+            else: # Handle case where it might not be datetime (though it should be)
+                 display_df['expiry_date'] = pd.to_datetime(display_df['expiry_date'], errors='coerce').dt.strftime('%Y-%m-%d')
+
+            # Rename columns for clarity if desired (optional)
+            # display_df = display_df.rename(columns={'item_name': 'Item', 'quantity_on_hand': 'Qty', 'expiry_date': 'Expires', 'expiry_status': 'Status'})
+
+            st.warning("Items requiring attention:") # Add a title/warning
+            st.dataframe(display_df, use_container_width=True) # Display the filtered data
+    else:
+        st.info("Batch data or expiry status not available for alerts.")
+
+
 else:
     # Display an error message if loading failed during initialization
     st.error("Failed to load inventory data. Please check the database file ('inventory_poc.db') and ensure it's correctly seeded with the new schema (item_parameters, inventory_batches).")
