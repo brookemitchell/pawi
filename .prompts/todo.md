@@ -115,12 +115,12 @@ Okay, here is the updated todo.md checklist with the original tasks marked as co
     -   [ ] Populate `inventory_batches` with one initial batch per item using original initial QoH and calculated initial expiry date.
 -   **E1: Data Model & Foundation Refactor**
     -   **Prompt E1.1: Update Data Loader for New Schema**
-        -   [ ] Modify `data_loader.py`: Update `load_inventory_data` function.
-        -   [ ] Query `item_parameters` into `item_params_df`, set index.
-        -   [ ] Query `inventory_batches` into `batches_df`, set index.
-        -   [ ] Convert `batches_df['expiry_date']` to datetime objects (`pd.to_datetime`).
-        -   [ ] Return both `item_params_df, batches_df`.
-        -   [ ] Update error handling to return `None, None`.
+        -   [x] Modify `data_loader.py`: Update `load_inventory_data` function.
+        -   [x] Query `item_parameters` into `item_params_df`, set index.
+        -   [x] Query `inventory_batches` into `batches_df`, set index.
+        -   [x] Convert `batches_df['expiry_date']` to datetime objects (`pd.to_datetime`).
+        -   [x] Return both `item_params_df, batches_df`.
+        -   [x] Update error handling to return `None, None`.
     -   **Prompt E1.2: Adapt App State & Basic Display**
         -   [ ] Modify `app.py`: Import `datetime`.
         -   [ ] Update initial state check for `'item_params_df'`.
@@ -134,15 +134,15 @@ Okay, here is the updated todo.md checklist with the original tasks marked as co
         -   [ ] Comment out/disable `advance_day_callback`, `simulate_order_callback` and buttons.
 -   **E2: FEFO Consumption**
     -   **Prompt E2.1: Implement FEFO Consumption Logic**
-        -   [ ] Modify `simulation.py`: Replace `advance_day` function signature.
-        -   [ ] Implement iteration by item.
-        -   [ ] Implement random consumption calculation per item.
-        -   [ ] Filter active, non-expired batches for item.
-        -   [ ] Sort active batches by `expiry_date`.
-        -   [ ] Implement consumption loop depleting batches according to FEFO.
-        -   [ ] Update `quantity_on_hand` in main DataFrame copy.
-        -   [ ] Remove zero-quantity batches after processing all items.
-        -   [ ] Return updated `batches_df` copy.
+        -   [x] Modify `simulation.py`: Replace `advance_day` function signature.
+        -   [x] Implement iteration by item.
+        -   [x] Implement random consumption calculation per item.
+        -   [x] Filter active, non-expired batches for item.
+        -   [x] Sort active batches by `expiry_date`.
+        -   [x] Implement consumption loop depleting batches according to FEFO.
+        -   [x] Update `quantity_on_hand` in main DataFrame copy.
+        -   [x] Remove zero-quantity batches after processing all items.
+        -   [x] Return updated `batches_df` copy.
     -   **Prompt E2.2: Integrate FEFO Simulation into App**
         -   [ ] Modify `app.py`: Import new `advance_day`.
         -   [ ] Re-enable `advance_day_callback()` function.
@@ -152,13 +152,13 @@ Okay, here is the updated todo.md checklist with the original tasks marked as co
         -   [ ] Re-enable the "Advance One Day" button.
 -   **E3: Batch Receiving Simulation**
     -   **Prompt E3.1: Implement Batch Addition Logic**
-        -   [ ] Modify `simulation.py`: Replace `simulate_order` with `add_new_batch` function.
-        -   [ ] Function accepts batches, params, item name, current date.
-        -   [ ] Get `shelf_life_months` and `reorder_quantity` from params.
-        -   [ ] Calculate `expiry_date` using `current_sim_date` and `shelf_life_months`.
-        -   [ ] Create new batch data dictionary/row.
-        -   [ ] Use `pd.concat` to add the new batch row to DataFrame copy (handle index).
-        -   [ ] Return updated `batches_df` copy.
+        -   [x] Modify `simulation.py`: Replace `simulate_order` with `add_new_batch` function.
+        -   [x] Function accepts batches, params, item name, current date.
+        -   [x] Get `shelf_life_months` and `reorder_quantity` from params.
+        -   [x] Calculate `expiry_date` using `current_sim_date` and `shelf_life_months`.
+        -   [x] Create new batch data dictionary/row.
+        -   [x] Use `pd.concat` to add the new batch row to DataFrame copy (handle index).
+        -   [x] Return updated `batches_df` copy.
     -   **Prompt E3.2: Update Order Callback Function**
         -   [ ] Modify `app.py`: Import `add_new_batch`.
         -   [ ] Re-enable `simulate_order_callback(item_name)` function.
@@ -167,8 +167,8 @@ Okay, here is the updated todo.md checklist with the original tasks marked as co
         -   [ ] Keep UI button disabled for now.
 -   **E4: Expiry Status Calculation & Alert Display**
     -   **Prompt E4.1: Implement Expiry Status Calculation**
-        -   [ ] Modify `simulation.py`: Define `ALERT_DAYS_BEFORE_EXPIRY` constant.
-        -   [ ] Modify `simulation.py`: Create `calculate_expiry_status` function (returns "Expired", "Nearing Expiry", "OK", handles NaT).
+        -   [x] Modify `simulation.py`: Define `ALERT_DAYS_BEFORE_EXPIRY` constant.
+        -   [x] Modify `simulation.py`: Create `calculate_expiry_status` function (returns "Expired", "Nearing Expiry", "OK", handles NaT).
         -   [ ] Modify `app.py`: Import `calculate_expiry_status`, `ALERT_DAYS_BEFORE_EXPIRY`.
         -   [ ] Modify `app.py`: Define `update_expiry_status_column(batches_df)` function.
         -   [ ] Call `update_expiry_status_column` after initial load, `advance_day`, and `add_new_batch`.
