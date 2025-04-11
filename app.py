@@ -103,6 +103,43 @@ def simulate_order_callback(item_name: str):
     else:
         st.warning("Inventory data not fully loaded or session state incomplete. Cannot simulate order.")
 
+def reorder_all_callback():
+    """Callback to simulate ordering all items currently flagged as 'Reorder Needed'."""
+    print("Reorder All callback triggered.") # Debug print
+    if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None \
+       and 'batches_df' in st.session_state and st.session_state['batches_df'] is not None:
+
+        ordered_items_count = 0
+        local_item_params_df = st.session_state['item_params_df']
+        local_batches_df = st.session_state['batches_df']
+
+        for item_name in local_item_params_df.index:
+            try:
+                # Calculate total QoH for the item
+                item_batches = local_batches_df[local_batches_df['item_name'] == item_name]
+                total_qoh = item_batches['quantity_on_hand'].sum()
+
+                # Get ROP safely
+                rop = int(local_item_params_df.loc[item_name, 'reorder_point'])
+
+                # Calculate status
+                item_status = calculate_status(total_qoh, rop)
+
+                if item_status == "Reorder Needed":
+                    print(f"Reordering {item_name}...") # Debug print
+                    simulate_order_callback(item_name) # Call the existing single-item order function
+                    ordered_items_count += 1
+            except (KeyError, ValueError) as e:
+                st.warning(f"Skipping reorder check for {item_name} due to data issue: {e}")
+
+        if ordered_items_count > 0:
+            st.toast(f"Triggered reorder simulation for {ordered_items_count} items.")
+        else:
+             st.toast("No items required reordering at this time.") # Feedback even if none ordered
+
+    else:
+        st.warning("Cannot perform reorder action: Inventory data not fully loaded.")
+
 # --- Title ---
 st.title("Pawfect inventory")
 
