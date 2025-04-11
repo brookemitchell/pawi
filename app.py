@@ -241,6 +241,34 @@ if item_params_df is not None and batches_df is not None:
 
     st.divider() # Add separator before the alerts section
 
+    # --- Inventory Trends Graph ---
+    st.subheader("Inventory Trends")
+    if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None:
+        item_list = st.session_state['item_params_df'].index.tolist()
+    else:
+        item_list = []
+
+    if not item_list:
+        st.info("Item list not available for trend graph.")
+    else:
+        selected_items = st.multiselect(
+            "Select items to plot history:",
+            item_list,
+            default=item_list[:min(2, len(item_list))] # Default to first 2 items or fewer
+        )
+
+        if st.session_state.get('history') and selected_items:
+            history_df = pd.DataFrame(st.session_state['history'])
+            filtered_history = history_df[history_df['item_name'].isin(selected_items)]
+
+            if not filtered_history.empty:
+                chart_data = filtered_history.pivot(index='day', columns='item_name', values='total_qoh')
+                st.line_chart(chart_data)
+            else:
+                st.info("No history recorded yet for selected items.")
+        else:
+            st.info("Run simulation or select items to see history graph.")
+
     # --- Expiring & Expired Batches Section ---
     st.subheader("Expiring & Expired Batches") # Renamed section header
     if batches_df is not None and 'expiry_status' in batches_df.columns:
