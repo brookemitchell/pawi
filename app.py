@@ -142,7 +142,7 @@ if item_params_df is not None and batches_df is not None:
     # --- Fully Integrated Table Display ---
     # Define headers - Now 8 columns
     col_headers = st.columns(8)
-    headers = ["Item Name", "Total QoH", "ROP", "Status", "Earliest Expiry", "Alerts", "Rec. Order Qty", "Action"]
+    headers = ["Item Name", "Total QoH", "ROP", "Status", "Earliest Expiry", "Expiry Alerts", "Rec. Order Qty", "Action"] # Renamed "Alerts"
     for col, header in zip(col_headers, headers):
         col.markdown(f"**{header}**") # Use markdown for bold headers
 
@@ -212,7 +212,7 @@ if item_params_df is not None and batches_df is not None:
             alert_display = ":heavy_check_mark:" # Assume OK if no batches
 
         cols[4].write(expiry_display) # Column 4: Earliest Expiry
-        cols[5].markdown(alert_display) # Column 5: Alerts (Expiry Summary) - Use markdown for icons
+        cols[5].markdown(alert_display) # Column 5: Expiry Alerts (Expiry Summary) - Use markdown for icons
 
         cols[6].write(roq) # Column 6: Rec. Order Qty
 
@@ -229,10 +229,10 @@ if item_params_df is not None and batches_df is not None:
 
     st.divider() # Add separator before the alerts section
 
-    # --- Expiry Alerts Section ---
-    st.subheader("Expiry Alerts")
+    # --- Expiring & Expired Batches Section ---
+    st.subheader("Expiring & Expired Batches") # Renamed section header
     if batches_df is not None and 'expiry_status' in batches_df.columns:
-        # Filter for alerts
+        # Filter for expiring/expired batches
         alerts_df = batches_df[batches_df['expiry_status'].isin(['Nearing Expiry', 'Expired'])]
 
         if alerts_df.empty:
