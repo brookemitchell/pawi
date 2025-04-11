@@ -57,18 +57,20 @@ st.title("Pawfect inventory")
 
 # --- Session State Initialization ---
 # Check if the inventory DataFrame is already in the session state
-if 'inventory_df' not in st.session_state:
+if 'inventory_df' not in st.session_state or 'batches_df' not in st.session_state:
     print("Initializing session state...") # Add print statement for debugging
     # Attempt to load data only if it's not already loaded
-    loaded_df = load_inventory_data()
-    if loaded_df is not None:
-        # Calculate initial status right after loading
-        st.session_state['inventory_df'] = update_status_column(loaded_df) # <-- Add this line
+    item_params_df, batches_df = load_inventory_data() # Unpack the tuple
+    if item_params_df is not None: # Check if item parameters loaded successfully
+        # Calculate initial status right after loading using item_params_df
+        st.session_state['inventory_df'] = update_status_column(item_params_df) # Use item_params_df
+        st.session_state['batches_df'] = batches_df # Store batches_df separately
         st.session_state['day_count'] = 0 # Initialize day count on successful load
         print("Data loaded and initial status calculated successfully into session state.") # Updated print
     else:
         # Store None if loading failed, to prevent trying again
         st.session_state['inventory_df'] = None
+        st.session_state['batches_df'] = None # Also store None for batches
         st.session_state['day_count'] = 0 # Initialize day count even on failure
         print("Failed to load data during initialization.")
 
