@@ -123,53 +123,87 @@ def calculate_status(qoh: int, rop: int) -> str:
     else:
         return "OK"
 
-def simulate_order(inventory_df: pd.DataFrame, item_name: str) -> pd.DataFrame:
+def add_new_batch(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, item_name: str, current_sim_date: date) -> pd.DataFrame:
     """
-    Simulates placing an order for a specific item, updating its quantity
-    on hand to the target stock level (ROP + RoQ).
+    Simulates receiving a new batch for a specific item.
+
+    Adds a new row to the batches DataFrame with the item's reorder quantity
+    and calculates the expiry date based on its standard shelf life.
 
     Args:
-        inventory_df: The current inventory status DataFrame.
-                      Must include 'reorder_point', 'reorder_quantity',
-                      and 'quantity_on_hand' columns.
-        item_name: The name (index) of the item to reorder.
+        batches_df: The current DataFrame of inventory batches.
+        item_params_df: DataFrame containing item parameters (incl. 'standard_shelf_life_months', 'reorder_quantity').
+        item_name: The name of the item for which to add a batch.
+        current_sim_date: The current simulation date, used as the receiving date.
 
     Returns:
-        A new DataFrame with the updated quantity_on_hand for the specified item.
-        Returns the original DataFrame if the item_name is not found or input is invalid.
+        A new DataFrame with the added batch. Returns the original DataFrame
+        if the item_name is not found in item_params_df or input is invalid.
     """
-    if inventory_df is None or inventory_df.empty:
-        print("Error: Cannot simulate order on empty or None DataFrame.")
-        return inventory_df
+    if batches_df is None or item_params_df is None or not item_name or current_sim_date is None:
+        print("Error: Invalid input to add_new_batch.")
+        return batches_df
 
-    df = inventory_df.copy() # Work on a copy
+    df_copy = batches_df.copy()
 
-    if item_name not in df.index:
-        print(f"Error: Item '{item_name}' not found in inventory DataFrame. Cannot simulate order.")
-        return df # Return the unmodified copy
+    if item_name not in item_params_df.index:
+        print(f"Error: Item '{item_name}' not found in item parameters. Cannot add batch.")
+        return df_copy # Return the unmodified copy
 
     try:
-        # Get the item's ROP and RoQ
-        rop = int(df.loc[item_name, 'reorder_point'])
-        roq = int(df.loc[item_name, 'reorder_quantity'])
+        # Get parameters from item_params_df
+        item_params = item_params_df.loc[item_name]
+        shelf_life_months = int(item_params['standard_shelf_life_months'])
+        reorder_quantity = int(item_params['reorder_quantity'])
 
-        # Calculate the target stock level
-        target_stock_level = rop + roq
+        # Calculate expiry date
+        # Ensure current_sim_date is datetime-like for DateOffset
+        current_sim_date_dt = pd.to_datetime(current_sim_date)
+        expiry_date_ts = current_sim_date_dt + pd.DateOffset(months=shelf_life_months)
+        # Convert Timestamp back to date object if needed, or keep as Timestamp
+        # Let's keep as Timestamp for consistency within pandas
+        expiry_date = expiry_date_ts # pd.to_datetime handles this well
 
-        # Update the quantity on hand for the item
-        df.loc[item_name, 'quantity_on_hand'] = target_stock_level
-        print(f"Simulated order for '{item_name}'. Quantity on hand set to {target_stock_level}.")
+        # Create new batch data
+        # Note: We are not assigning a batch_id here. It's assumed the DB would handle this
+        # upon actual persistence. For runtime, concat with ignore_index handles it.
+        new_batch_data = {
+            'item_name': item_name,
+            'quantity_on_hand': reorder_quantity,
+            'expiry_date': expiry_date
+            # 'batch_id': None # Explicitly not setting it here
+        }
+        print(f"Adding new batch for {item_name}: Qty={reorder_quantity}, Expires={expiry_date.strftime('%Y-%m-%d')}")
+
+        # Convert dictionary to a DataFrame
+        new_batch_df = pd.DataFrame([new_batch_data])
+
+        # Append the new batch DataFrame
+        # Reset index of the original df_copy IF it has a meaningful index (like batch_id)
+        # that would conflict. If it's just a default range index, it might not be necessary.
+        # Using ignore_index=True is the safest approach for runtime concatenation
+        # when the new row doesn't have a pre-assigned index matching the existing scheme.
+        # If df_copy still has 'batch_id' as index from loading, we need to reset it first.
+        if df_copy.index.name == 'batch_id':
+             df_updated = pd.concat([df_copy.reset_index(), new_batch_df], ignore_index=True)
+             # Decide if we need to set an index back. For now, let's leave it as a default RangeIndex.
+             # If we need batch_id later, we might need to adjust.
+             # df_updated = df_updated.set_index('batch_id') # Optional: reinstate index if needed
+        else:
+             # If index is not 'batch_id' (e.g., default RangeIndex), just concat
+             df_updated = pd.concat([df_copy, new_batch_df], ignore_index=True)
+
+
+        return df_updated
 
     except KeyError as e:
-        print(f"Error simulating order for {item_name}: Missing expected column {e}.")
-        # Return the unmodified copy if data is missing
-        return inventory_df.copy()
+        print(f"Error adding batch for {item_name}: Missing expected column {e} in item_params_df.")
+        return df_copy
     except (ValueError, TypeError) as e:
-        print(f"Error simulating order for {item_name}: Invalid data type for calculation ({e}).")
-        # Return the unmodified copy if data is invalid
-        return inventory_df.copy()
-
-    return df
+        print(f"Error adding batch for {item_name}: Invalid data type for calculation ({e}).")
+        return df_copy
+    except Exception as e:
+        print(f"An unexpected error occurred adding batch for {item_name}: {e}")
+        return df_copy
 
 # --- Placeholder for future simulation functions ---
-# def simulate_order(inventory_df, item_name): ... # <-- Keep or remove this line as desired
