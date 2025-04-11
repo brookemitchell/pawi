@@ -370,19 +370,29 @@ if item_params_df is not None and batches_df is not None:
         if alerts_df.empty:
             st.info("No items currently nearing expiry or expired.")
         else:
-            # Select and format columns for display
-            display_df = alerts_df[['item_name', 'quantity_on_hand', 'expiry_date', 'expiry_status']].copy() # Work on copy
-            # Format date for display - ensure it's datetime first
-            if pd.api.types.is_datetime64_any_dtype(display_df['expiry_date']):
-                 display_df['expiry_date'] = display_df['expiry_date'].dt.strftime('%Y-%m-%d')
-            else: # Handle case where it might not be datetime (though it should be)
-                 display_df['expiry_date'] = pd.to_datetime(display_df['expiry_date'], errors='coerce').dt.strftime('%Y-%m-%d')
-
-            # Rename columns for clarity if desired (optional)
-            # display_df = display_df.rename(columns={'item_name': 'Item', 'quantity_on_hand': 'Qty', 'expiry_date': 'Expires', 'expiry_status': 'Status'})
-
             st.warning("Items requiring attention:") # Add a title/warning
-            st.dataframe(display_df, use_container_width=True) # Display the filtered data
+
+            # --- Custom Table with Discard Buttons ---
+            # Define headers
+            col_headers = st.columns(5)
+            headers = ["Item Name", "Qty", "Expires", "Status", "Action"]
+            for col, header in zip(col_headers, headers):
+                col.markdown(f"**{header}**")
+            st.divider()
+
+            # Iterate through the filtered alerts DataFrame
+            for batch_index, row_data in alerts_df.iterrows():
+                cols = st.columns(5)
+                cols[0].write(row_data['item_name'])
+                cols[1].write(row_data['quantity_on_hand'])
+                # Format expiry date safely
+                expiry_date_str = pd.to_datetime(row_data['expiry_date']).strftime('%Y-%m-%d') if pd.notna(row_data['expiry_date']) else "N/A"
+                cols[2].write(expiry_date_str)
+                cols[3].write(row_data['expiry_status'])
+                # Add the discard button in the 'Action' column
+                cols[4].button("Discard", key=f"discard_{batch_index}", on_click=discard_batch_callback, args=(batch_index,))
+            # --- End Custom Table ---
+
     else:
         st.info("Batch data or expiry status not available for alerts.")
 
