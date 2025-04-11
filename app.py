@@ -139,6 +139,46 @@ st.sidebar.metric("Simulation Day", current_day)
 # Add the button to trigger the simulation step
 st.sidebar.button("Advance One Day", on_click=advance_day_callback)
 
+# --- Reorder Suggestions Section (Sidebar) ---
+st.sidebar.divider()
+st.sidebar.subheader("Reorder Suggestions")
+
+# Check if data is loaded before attempting to calculate suggestions
+if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None \
+   and 'batches_df' in st.session_state and st.session_state['batches_df'] is not None:
+
+    items_to_reorder = []
+    local_item_params_df = st.session_state['item_params_df'] # Local reference
+    local_batches_df = st.session_state['batches_df']       # Local reference
+
+    for item_name in local_item_params_df.index:
+        try:
+            # Calculate total QoH for the item
+            item_batches = local_batches_df[local_batches_df['item_name'] == item_name]
+            total_qoh = item_batches['quantity_on_hand'].sum()
+
+            # Get ROP and RoQ safely
+            rop = int(local_item_params_df.loc[item_name, 'reorder_point'])
+            roq = int(local_item_params_df.loc[item_name, 'reorder_quantity'])
+
+            # Calculate status
+            item_status = calculate_status(total_qoh, rop)
+
+            if item_status == "Reorder Needed":
+                items_to_reorder.append({'Item': item_name, 'Reorder Qty': roq})
+        except (KeyError, ValueError) as e:
+            st.sidebar.warning(f"Data issue for {item_name}: {e}") # Warn about specific item issues
+
+    if items_to_reorder:
+        reorder_df = pd.DataFrame(items_to_reorder)
+        st.sidebar.dataframe(reorder_df, hide_index=True)
+        # Note: reorder_all_callback is not defined yet, but we add the button structure
+        st.sidebar.button("Reorder All Suggested", on_click=lambda: print("Reorder All Clicked (Callback TBD)"), key="reorder_all") # Placeholder lambda for now
+    else:
+        st.sidebar.info("No items need reordering.")
+else:
+    st.sidebar.warning("Inventory data not loaded.")
+
 # --- Main Area: Display Data or Error ---
 st.header("Inventory Status")
 
