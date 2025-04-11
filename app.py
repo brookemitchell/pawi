@@ -173,7 +173,7 @@ if 'item_params_df' in st.session_state and st.session_state['item_params_df'] i
         reorder_df = pd.DataFrame(items_to_reorder)
         st.sidebar.dataframe(reorder_df, hide_index=True)
         # Note: reorder_all_callback is not defined yet, but we add the button structure
-        st.sidebar.button("Reorder All Suggested", on_click=lambda: print("Reorder All Clicked (Callback TBD)"), key="reorder_all") # Placeholder lambda for now
+        st.sidebar.button("Reorder All Suggested", on_click=reorder_all_callback, key="reorder_all") # Placeholder lambda for now
     else:
         st.sidebar.info("No items need reordering.")
 else:
