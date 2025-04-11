@@ -3,8 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta # Import date and timedelta
 from data_loader import load_inventory_data
-from simulation import advance_day, add_new_batch, calculate_expiry_status, ALERT_DAYS_BEFORE_EXPIRY # Import new functions/constants
-# from simulation import calculate_status # Keep calculate_status commented for now
+from simulation import advance_day, add_new_batch, calculate_expiry_status, ALERT_DAYS_BEFORE_EXPIRY, calculate_status # Import calculate_status
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(page_title="Pawfect inventory", layout="wide")
@@ -139,10 +138,10 @@ current_sim_date = st.session_state.get('current_sim_date', date.today())
 st.metric("Current Simulation Date", current_sim_date.strftime('%Y-%m-%d'))
 
 if item_params_df is not None and batches_df is not None:
-    # --- Enhanced Table Display ---
-    # Define headers
-    col_headers = st.columns(4) # Increased columns for expiry info
-    headers = ["Item Name", "Total QoH", "Earliest Expiry", "Alerts"]
+    # --- Fully Integrated Table Display ---
+    # Define headers - Now 8 columns
+    col_headers = st.columns(8)
+    headers = ["Item Name", "Total QoH", "ROP", "Status", "Earliest Expiry", "Alerts", "Rec. Order Qty", "Action"]
     for col, header in zip(col_headers, headers):
         col.markdown(f"**{header}**") # Use markdown for bold headers
 
@@ -150,14 +149,38 @@ if item_params_df is not None and batches_df is not None:
 
     # Iterate through the item parameters index (item names)
     for item_name in item_params_df.index:
-        cols = st.columns(4) # Match header columns
-        cols[0].write(item_name)
+        cols = st.columns(8) # Match header columns
+        cols[0].write(item_name) # Column 0: Item Name
 
         # Filter batches for the current item
         item_batches = batches_df[batches_df['item_name'] == item_name]
         # Calculate total quantity on hand for the item
         total_qoh = item_batches['quantity_on_hand'].sum()
-        cols[1].write(total_qoh)
+        cols[1].write(total_qoh) # Column 1: Total QoH
+
+        # Get ROP and RoQ from item_params_df
+        try:
+            rop = int(item_params_df.loc[item_name, 'reorder_point'])
+            roq = int(item_params_df.loc[item_name, 'reorder_quantity'])
+        except (KeyError, ValueError):
+            rop = 0 # Default if missing or invalid
+            roq = 0 # Default if missing or invalid
+            st.warning(f"Missing/invalid ROP/RoQ for {item_name}")
+
+        cols[2].write(rop) # Column 2: ROP
+
+        # Calculate overall item status
+        item_status = calculate_status(total_qoh, rop)
+
+        # Column 3: Status (Overall) - with color
+        if item_status == "Reorder Needed":
+            cols[3].markdown(f":red[{item_status}]")
+        elif item_status == "Low Stock":
+            cols[3].markdown(f":orange[{item_status}]")
+        elif item_status == "OK":
+            cols[3].markdown(f":green[{item_status}]")
+        else: # Fallback for "Error" status from calculate_status
+            cols[3].write(item_status)
 
         # Calculate expiry summary stats
         if not item_batches.empty and 'expiry_date' in item_batches.columns and 'expiry_status' in item_batches.columns:
@@ -187,31 +210,21 @@ if item_params_df is not None and batches_df is not None:
             expiry_display = "N/A"
             alert_display = ":heavy_check_mark:" # Assume OK if no batches
 
-        cols[2].write(expiry_display)
-        cols[3].markdown(alert_display) # Use markdown to render icons
+        cols[4].write(expiry_display) # Column 4: Earliest Expiry
+        cols[5].markdown(alert_display) # Column 5: Alerts (Expiry Summary) - Use markdown for icons
 
+        cols[6].write(roq) # Column 6: Rec. Order Qty
 
-        # --- ROP, Status, Rec. Order Qty, Action columns are removed/commented out ---
-        # cols[2].write(row_data['reorder_point']) # Old index 2
-        # status = row_data['status']
-        # if status == "Reorder Needed":
-        #     cols[3].markdown(f":red[{status}]")
-        # elif status == "Low Stock":
-        #     cols[3].markdown(f":orange[{status}]")
-        # elif status == "OK":
-        #     cols[3].markdown(f":green[{status}]")
-        # else:
-        #     cols[3].write(status)
-        # cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
-        # if status == "Reorder Needed":
-        #     cols[5].button("Order",
-        #                    key=f"order_{item_name}",
-        #                    on_click=simulate_order_callback,
-        #                    args=(item_name,))
-        # else:
-        #     cols[5].write("")
+        # Column 7: Action Button (Conditional)
+        if item_status == "Reorder Needed":
+            cols[7].button("Simulate Order",
+                           key=f"order_{item_name}",
+                           on_click=simulate_order_callback,
+                           args=(item_name,))
+        else:
+            cols[7].write("") # Keep the column empty if no action is needed
 
-    # st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Caption removed/modified
+    # st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Optional caption
 
     st.divider() # Add separator before the alerts section
 
