@@ -139,10 +139,10 @@ current_sim_date = st.session_state.get('current_sim_date', date.today())
 st.metric("Current Simulation Date", current_sim_date.strftime('%Y-%m-%d'))
 
 if item_params_df is not None and batches_df is not None:
-    # --- Simplified Table Display ---
+    # --- Enhanced Table Display ---
     # Define headers
-    col_headers = st.columns(2) # Only two columns now
-    headers = ["Item Name", "Total Quantity on Hand"]
+    col_headers = st.columns(4) # Increased columns for expiry info
+    headers = ["Item Name", "Total QoH", "Earliest Expiry", "Alerts"]
     for col, header in zip(col_headers, headers):
         col.markdown(f"**{header}**") # Use markdown for bold headers
 
@@ -150,7 +150,7 @@ if item_params_df is not None and batches_df is not None:
 
     # Iterate through the item parameters index (item names)
     for item_name in item_params_df.index:
-        cols = st.columns(2) # Match header columns
+        cols = st.columns(4) # Match header columns
         cols[0].write(item_name)
 
         # Filter batches for the current item
@@ -159,8 +159,40 @@ if item_params_df is not None and batches_df is not None:
         total_qoh = item_batches['quantity_on_hand'].sum()
         cols[1].write(total_qoh)
 
+        # Calculate expiry summary stats
+        if not item_batches.empty and 'expiry_date' in item_batches.columns and 'expiry_status' in item_batches.columns:
+            earliest_expiry_date = item_batches['expiry_date'].min()
+            nearing_count = item_batches[item_batches['expiry_status'] == 'Nearing Expiry'].shape[0]
+            expired_count = item_batches[item_batches['expiry_status'] == 'Expired'].shape[0]
+
+            # Format earliest expiry date
+            if pd.isna(earliest_expiry_date):
+                expiry_display = "N/A"
+            else:
+                try:
+                    # Ensure it's datetime before formatting
+                    expiry_display = pd.to_datetime(earliest_expiry_date).strftime('%Y-%m-%d')
+                except ValueError:
+                    expiry_display = "Invalid Date"
+
+            # Create alert display string
+            alert_text = []
+            if nearing_count > 0:
+                alert_text.append(f":warning: {nearing_count} Nearing")
+            if expired_count > 0:
+                alert_text.append(f":x: {expired_count} Expired")
+            alert_display = " / ".join(alert_text) if alert_text else ":heavy_check_mark:" # Green check if no alerts
+
+        else: # Handle cases with no batches or missing columns
+            expiry_display = "N/A"
+            alert_display = ":heavy_check_mark:" # Assume OK if no batches
+
+        cols[2].write(expiry_display)
+        cols[3].markdown(alert_display) # Use markdown to render icons
+
+
         # --- ROP, Status, Rec. Order Qty, Action columns are removed/commented out ---
-        # cols[2].write(row_data['reorder_point'])
+        # cols[2].write(row_data['reorder_point']) # Old index 2
         # status = row_data['status']
         # if status == "Reorder Needed":
         #     cols[3].markdown(f":red[{status}]")
