@@ -2111,3 +2111,15 @@ This sequence of prompts systematically builds the expiry management feature, st
 
 # Response
 That's a great prompt plan, can you also update todo.md checklist with the new tasks
+
+> todo.md
+
+# Response
+all of those items are now complete, and working well, now I'd like to add some streamlit UI elements and graphs influenced by the following design influences, an inventory tracking graph, automated 'reorder all' options and expiration alerts and recommendations. , I would like to explore the plan to add these streamli ui changes that helps 'reduce unnecessary waste'.  How could we plan adding this changes
+
+> spec_3.md
+> 
+
+# Response
+Also create a todo.md for these ui changes I can check against
+
