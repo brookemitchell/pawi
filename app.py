@@ -67,6 +67,16 @@ def advance_day_callback():
             st.session_state['item_params_df'],
             st.session_state['current_sim_date']
         )
+
+        # --- Record History ---
+        day = st.session_state['day_count']
+        item_names = st.session_state['item_params_df'].index
+        for item_name in item_names:
+            # Ensure total_qoh calculation handles cases where an item might temporarily have no batches
+            total_qoh = updated_batches_df[updated_batches_df['item_name'] == item_name]['quantity_on_hand'].sum() if not updated_batches_df[updated_batches_df['item_name'] == item_name].empty else 0
+            st.session_state['history'].append({'day': day, 'item_name': item_name, 'total_qoh': total_qoh})
+        # --- End Record History ---
+
         # Update the batches DataFrame in session state AFTER calculating status
         st.session_state['batches_df'] = update_expiry_status_column(updated_batches_df)
         print(f"Advanced to Day {st.session_state['day_count']}, Sim Date: {st.session_state['current_sim_date']}") # Debug print
