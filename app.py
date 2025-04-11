@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta # Import date and timedelta
 from data_loader import load_inventory_data
-from simulation import advance_day, add_new_batch # Import the new advance_day and add_new_batch functions
+from simulation import advance_day, add_new_batch, calculate_expiry_status, ALERT_DAYS_BEFORE_EXPIRY # Import new functions/constants
 # from simulation import calculate_status # Keep calculate_status commented for now
 
 # --- Page Config (Optional but Recommended) ---
@@ -27,6 +27,30 @@ st.set_page_config(page_title="Pawfect inventory", layout="wide")
 #         df['status'] = 'Error'
 #     return df
 
+def update_expiry_status_column(batches_df: pd.DataFrame) -> pd.DataFrame:
+    """Applies expiry status calculation to the batches DataFrame."""
+    if batches_df is None or batches_df.empty:
+        return batches_df
+
+    # Ensure 'expiry_date' is datetime - should be handled by loader/simulation, but good practice
+    if 'expiry_date' in batches_df.columns and not pd.api.types.is_datetime64_any_dtype(batches_df['expiry_date']):
+        batches_df['expiry_date'] = pd.to_datetime(batches_df['expiry_date'], errors='coerce')
+
+    if 'current_sim_date' not in st.session_state:
+        st.error("Simulation date not found in session state. Cannot calculate expiry status.")
+        return batches_df # Return unchanged if date is missing
+
+    current_sim_date = st.session_state['current_sim_date']
+    df = batches_df.copy() # Work on a copy
+
+    # Apply the calculation function
+    df['expiry_status'] = df.apply(
+        lambda row: calculate_expiry_status(row.get('expiry_date'), current_sim_date, ALERT_DAYS_BEFORE_EXPIRY),
+        axis=1
+    )
+    return df
+
+
 # --- Callback Functions ---
 def advance_day_callback():
     """Callback function to advance the simulation by one day using FEFO."""
@@ -44,8 +68,8 @@ def advance_day_callback():
             st.session_state['item_params_df'],
             st.session_state['current_sim_date']
         )
-        # Update the batches DataFrame in session state
-        st.session_state['batches_df'] = updated_batches_df
+        # Update the batches DataFrame in session state AFTER calculating status
+        st.session_state['batches_df'] = update_expiry_status_column(updated_batches_df)
         print(f"Advanced to Day {st.session_state['day_count']}, Sim Date: {st.session_state['current_sim_date']}") # Debug print
     else:
         # Handle the case where data isn't loaded or state is incomplete
@@ -64,8 +88,8 @@ def simulate_order_callback(item_name: str):
             item_name,
             st.session_state['current_sim_date']
         )
-        # Update the batches DataFrame in session state
-        st.session_state['batches_df'] = updated_batches_df
+        # Update the batches DataFrame in session state AFTER calculating status
+        st.session_state['batches_df'] = update_expiry_status_column(updated_batches_df)
         print(f"Simulated order for {item_name}. New batch added.") # Debug print
     else:
         st.warning("Inventory data not fully loaded or session state incomplete. Cannot simulate order.")
@@ -81,10 +105,11 @@ if 'item_params_df' not in st.session_state:
     item_params_df, batches_df = load_inventory_data() # Unpack the tuple
     if item_params_df is not None and batches_df is not None: # Check if both loaded successfully
         st.session_state['item_params_df'] = item_params_df
-        st.session_state['batches_df'] = batches_df
+        # Calculate initial expiry status right after loading
+        st.session_state['batches_df'] = update_expiry_status_column(batches_df)
         st.session_state['current_sim_date'] = date.today() # Initialize simulation date
         st.session_state['day_count'] = 0 # Initialize day count on successful load
-        print("Data loaded successfully into session state.")
+        print("Data loaded successfully into session state and initial expiry status calculated.")
     else:
         # Store None if loading failed, to prevent trying again
         st.session_state['item_params_df'] = None

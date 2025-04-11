@@ -1,7 +1,11 @@
 import pandas as pd
 import random
-from datetime import date, timedelta # Ensure date is imported
+from datetime import date, timedelta, datetime # Ensure date, timedelta, datetime are imported
 
+# --- Constants ---
+ALERT_DAYS_BEFORE_EXPIRY = 30
+
+# --- Simulation Functions ---
 def advance_day(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, current_sim_date: date) -> pd.DataFrame:
     """
     Simulates one day of inventory consumption using FEFO (First-Expired, First-Out).
@@ -122,6 +126,51 @@ def calculate_status(qoh: int, rop: int) -> str:
         return "Low Stock"
     else:
         return "OK"
+
+def calculate_expiry_status(expiry_date, current_date, alert_days=ALERT_DAYS_BEFORE_EXPIRY) -> str:
+    """
+    Calculates the expiry status of a batch based on the current date.
+
+    Args:
+        expiry_date: The expiry date of the batch (should be datetime-like or NaT).
+        current_date: The current simulation date (should be datetime-like).
+        alert_days: The number of days before expiry to trigger the "Nearing Expiry" status.
+
+    Returns:
+        A string: "Expired", "Nearing Expiry", "OK", or "Unknown".
+    """
+    # Ensure dates are comparable datetime objects
+    if pd.isna(expiry_date):
+        return "Unknown" # Handle NaT or None expiry dates
+
+    # Ensure expiry_date is datetime-like (it should be from loading/creation)
+    if not isinstance(expiry_date, (datetime, date, pd.Timestamp)):
+         try:
+             expiry_date = pd.to_datetime(expiry_date)
+         except ValueError:
+             return "Unknown" # Cannot parse expiry date
+
+    # Ensure current_date is datetime-like
+    if not isinstance(current_date, (datetime, date, pd.Timestamp)):
+        try:
+            current_date = pd.to_datetime(current_date)
+        except ValueError:
+            return "Error" # Should not happen if current_sim_date is managed correctly
+
+    # Normalize to date objects to avoid time comparison issues if Timestamps are used
+    expiry_date_obj = expiry_date.date() if hasattr(expiry_date, 'date') else expiry_date
+    current_date_obj = current_date.date() if hasattr(current_date, 'date') else current_date
+
+    if expiry_date_obj < current_date_obj:
+        return "Expired"
+
+    alert_date_obj = current_date_obj + timedelta(days=alert_days)
+
+    if current_date_obj <= expiry_date_obj < alert_date_obj:
+        return "Nearing Expiry"
+    else:
+        return "OK"
+
 
 def add_new_batch(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, item_name: str, current_sim_date: date) -> pd.DataFrame:
     """
