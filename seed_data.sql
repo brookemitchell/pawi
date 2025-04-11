@@ -36,17 +36,17 @@ INSERT INTO inventory_items (item_name, min_daily_usage, max_daily_usage, buffer
 ('Applicator type 3', 5, 20, 4, 14, 240, 24); -- 24 months
 
 -- Insert initial batch data based on initial_quantity_on_hand from inventory_items
--- Using a far-future expiry date as a placeholder
+-- Using varied expiry dates relative to the current date (approx 2025-04-11) for testing alerts
 INSERT INTO inventory_batches (item_name, quantity_on_hand, expiry_date) VALUES
-('Parvo tests', 12, '2099-12-31'),
-('Blood cartridges', 105, '2099-12-31'),
-('Antigen tests', 70, '2099-12-31'),
-('Slide type 1', 200, '2099-12-31'),
-('Slide type 2', 250, '2099-12-31'),
-('Cover glass', 450, '2099-12-31'),
-('Applicator type 1', 140, '2099-12-31'),
-('Applicator type 2', 220, '2099-12-31'),
-('Applicator type 3', 240, '2099-12-31');
+('Parvo tests', 12, '2025-04-25'),          -- Nearing Expiry (within 30 days)
+('Blood cartridges', 105, '2025-03-15'),    -- Expired (in the past)
+('Antigen tests', 70, '2025-08-01'),        -- OK (future)
+('Slide type 1', 200, '2025-05-01'),        -- Nearing Expiry (within 30 days)
+('Slide type 2', 250, '2099-12-31'),        -- OK (far future)
+('Cover glass', 450, '2099-12-31'),        -- OK (far future)
+('Applicator type 1', 140, '2025-02-10'),    -- Expired (in the past)
+('Applicator type 2', 220, '2099-12-31'),    -- OK (far future)
+('Applicator type 3', 240, '2099-12-31');    -- OK (far future)
 
 
 -- Commit the changes (handled by Python's connection context or explicit commit)
