@@ -1,137 +1,145 @@
 # --- Imports ---
 import streamlit as st
 import pandas as pd
+from datetime import date # Import date
 from data_loader import load_inventory_data
-from simulation import advance_day, calculate_status, simulate_order # Import the simulation and status functions
+# from simulation import advance_day, calculate_status, simulate_order # Comment out unused imports for now
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(page_title="Pawfect inventory", layout="wide")
 
 # --- Helper Functions ---
-def update_status_column(df: pd.DataFrame) -> pd.DataFrame:
-    """Calculates and updates the 'status' column of the DataFrame."""
-    if df is None or df.empty:
-        return df
-    # Ensure required columns exist
-    if 'quantity_on_hand' in df.columns and 'reorder_point' in df.columns:
-         # Use .apply to calculate status for each row
-        df['status'] = df.apply(
-            lambda row: calculate_status(row['quantity_on_hand'], row['reorder_point']),
-            axis=1
-        )
-    else:
-        print("Error: Missing 'quantity_on_hand' or 'reorder_point' column for status calculation.")
-        # Optionally add an error status column or handle differently
-        df['status'] = 'Error'
-    return df
+# def update_status_column(df: pd.DataFrame) -> pd.DataFrame:
+#     """Calculates and updates the 'status' column of the DataFrame."""
+#     if df is None or df.empty:
+#         return df
+#     # Ensure required columns exist
+#     if 'quantity_on_hand' in df.columns and 'reorder_point' in df.columns:
+#          # Use .apply to calculate status for each row
+#         df['status'] = df.apply(
+#             lambda row: calculate_status(row['quantity_on_hand'], row['reorder_point']),
+#             axis=1
+#         )
+#     else:
+#         print("Error: Missing 'quantity_on_hand' or 'reorder_point' column for status calculation.")
+#         # Optionally add an error status column or handle differently
+#         df['status'] = 'Error'
+#     return df
 
-# --- Callback Functions ---
-def advance_day_callback():
-    """Callback function to advance the simulation by one day."""
-    if 'inventory_df' in st.session_state and st.session_state['inventory_df'] is not None:
-        st.session_state['day_count'] += 1
-        # Call the simulation function
-        updated_df = advance_day(st.session_state['inventory_df'])
-        # Calculate status AFTER advancing the day
-        final_df = update_status_column(updated_df) # <-- Add this line
-        # Update the DataFrame in session state
-        st.session_state['inventory_df'] = final_df # <-- Update with final_df
-    else:
-        # Optionally handle the case where data isn't loaded
-        st.warning("Inventory data not loaded. Cannot advance day.")
+# --- Callback Functions (Temporarily Disabled) ---
+# def advance_day_callback():
+#     """Callback function to advance the simulation by one day."""
+#     if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None:
+#         st.session_state['day_count'] += 1
+#         # Call the simulation function (Needs update for new data model)
+#         # updated_batches_df = advance_day(st.session_state['batches_df'], st.session_state['item_params_df'], st.session_state['current_sim_date'])
+#         # Update the DataFrame in session state
+#         # st.session_state['batches_df'] = updated_batches_df
+#         pass # Placeholder
+#     else:
+#         # Optionally handle the case where data isn't loaded
+#         st.warning("Inventory data not loaded. Cannot advance day.")
 
-def simulate_order_callback(item_name: str):
-    """Callback function to simulate placing an order for a specific item."""
-    if 'inventory_df' in st.session_state and st.session_state['inventory_df'] is not None:
-        # Call the order simulation function
-        ordered_df = simulate_order(st.session_state['inventory_df'], item_name)
-        # Recalculate status for the entire DataFrame after the order
-        final_df = update_status_column(ordered_df)
-        # Update the DataFrame in session state
-        st.session_state['inventory_df'] = final_df
-    else:
-        st.warning("Inventory data not loaded. Cannot simulate order.")
+# def simulate_order_callback(item_name: str):
+#     """Callback function to simulate placing an order for a specific item."""
+#     if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None:
+#         # Call the order simulation function (Needs update for new data model)
+#         # ordered_batches_df = add_new_batch(st.session_state['batches_df'], st.session_state['item_params_df'], item_name, st.session_state['current_sim_date'])
+#         # Update the DataFrame in session state
+#         # st.session_state['batches_df'] = ordered_batches_df
+#         pass # Placeholder
+#     else:
+#         st.warning("Inventory data not loaded. Cannot simulate order.")
 
 # --- Title ---
 st.title("Pawfect inventory")
 
 # --- Session State Initialization ---
-# Check if the inventory DataFrame is already in the session state
-if 'inventory_df' not in st.session_state or 'batches_df' not in st.session_state:
-    print("Initializing session state...") # Add print statement for debugging
+# Check if the item parameters DataFrame is already in the session state
+if 'item_params_df' not in st.session_state:
+    print("Initializing session state...")
     # Attempt to load data only if it's not already loaded
     item_params_df, batches_df = load_inventory_data() # Unpack the tuple
-    if item_params_df is not None: # Check if item parameters loaded successfully
-        # Calculate initial status right after loading using item_params_df
-        st.session_state['inventory_df'] = update_status_column(item_params_df) # Use item_params_df
-        st.session_state['batches_df'] = batches_df # Store batches_df separately
+    if item_params_df is not None and batches_df is not None: # Check if both loaded successfully
+        st.session_state['item_params_df'] = item_params_df
+        st.session_state['batches_df'] = batches_df
+        st.session_state['current_sim_date'] = date.today() # Initialize simulation date
         st.session_state['day_count'] = 0 # Initialize day count on successful load
-        print("Data loaded and initial status calculated successfully into session state.") # Updated print
+        print("Data loaded successfully into session state.")
     else:
         # Store None if loading failed, to prevent trying again
-        st.session_state['inventory_df'] = None
-        st.session_state['batches_df'] = None # Also store None for batches
+        st.session_state['item_params_df'] = None
+        st.session_state['batches_df'] = None
+        st.session_state['current_sim_date'] = date.today() # Initialize date even on failure
         st.session_state['day_count'] = 0 # Initialize day count even on failure
         print("Failed to load data during initialization.")
 
 # --- Sidebar ---
 st.sidebar.header("Simulation Controls")
 # Display the current day count from session state
-# Use .get() to provide a default value if state isn't fully initialized yet
 current_day = st.session_state.get('day_count', 0)
 st.sidebar.metric("Simulation Day", current_day)
 
-# Add the button to trigger the simulation step
-st.sidebar.button("Advance One Day", on_click=advance_day_callback)
+# Add the button to trigger the simulation step (Temporarily Disabled)
+# st.sidebar.button("Advance One Day", on_click=advance_day_callback)
 
 # --- Main Area: Display Data or Error ---
 st.header("Inventory Status")
 
-# Check the inventory DataFrame stored in session state
-inventory_df = st.session_state.get('inventory_df', None) # Use .get for safety
+# Check the DataFrames stored in session state
+item_params_df = st.session_state.get('item_params_df', None)
+batches_df = st.session_state.get('batches_df', None)
+current_sim_date = st.session_state.get('current_sim_date', date.today())
 
-if inventory_df is not None:
-    # --- Custom Table Display ---
+# Display current simulation date
+st.metric("Current Simulation Date", current_sim_date.strftime('%Y-%m-%d'))
+
+if item_params_df is not None and batches_df is not None:
+    # --- Simplified Table Display ---
     # Define headers
-    col_headers = st.columns(6)
-    headers = ["Item Name", "Qty on Hand", "Reorder Point", "Status", "Rec. Order Qty", "Action"]
+    col_headers = st.columns(2) # Only two columns now
+    headers = ["Item Name", "Total Quantity on Hand"]
     for col, header in zip(col_headers, headers):
         col.markdown(f"**{header}**") # Use markdown for bold headers
 
     st.divider() # Add a visual separator
 
-    # Iterate through the DataFrame rows and display data in columns
-    for item_name, row_data in inventory_df.iterrows():
-        cols = st.columns(6)
+    # Iterate through the item parameters index (item names)
+    for item_name in item_params_df.index:
+        cols = st.columns(2) # Match header columns
         cols[0].write(item_name)
-        cols[1].write(row_data['quantity_on_hand'])
-        cols[2].write(row_data['reorder_point'])
-        # --- Status Display with Color ---
-        status = row_data['status']
-        if status == "Reorder Needed":
-            cols[3].markdown(f":red[{status}]")
-        elif status == "Low Stock":
-            cols[3].markdown(f":orange[{status}]")
-        elif status == "OK":
-            cols[3].markdown(f":green[{status}]")
-        else: # Fallback for unexpected status values (e.g., "Error")
-            cols[3].write(status)
-        cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
-        # --- Action Button ---
-        if status == "Reorder Needed":
-            # Use item_name (which is the index) directly in key and args
-            cols[5].button("Order",
-                           key=f"order_{item_name}",
-                           on_click=simulate_order_callback,
-                           args=(item_name,)) # Pass item_name to the callback
-        else:
-            cols[5].write("") # Keep the column empty if no action is needed
 
-    st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Keep the caption
+        # Filter batches for the current item
+        item_batches = batches_df[batches_df['item_name'] == item_name]
+        # Calculate total quantity on hand for the item
+        total_qoh = item_batches['quantity_on_hand'].sum()
+        cols[1].write(total_qoh)
+
+        # --- ROP, Status, Rec. Order Qty, Action columns are removed/commented out ---
+        # cols[2].write(row_data['reorder_point'])
+        # status = row_data['status']
+        # if status == "Reorder Needed":
+        #     cols[3].markdown(f":red[{status}]")
+        # elif status == "Low Stock":
+        #     cols[3].markdown(f":orange[{status}]")
+        # elif status == "OK":
+        #     cols[3].markdown(f":green[{status}]")
+        # else:
+        #     cols[3].write(status)
+        # cols[4].write(row_data['reorder_quantity']) # Recommended Order Qty
+        # if status == "Reorder Needed":
+        #     cols[5].button("Order",
+        #                    key=f"order_{item_name}",
+        #                    on_click=simulate_order_callback,
+        #                    args=(item_name,))
+        # else:
+        #     cols[5].write("")
+
+    # st.caption(f"Displaying inventory status at the end of Day {current_day}.") # Caption removed/modified
 
 else:
     # Display an error message if loading failed during initialization
-    st.error("Failed to load inventory data. Please check the database file ('inventory_poc.db') and ensure it's correctly seeded.")
+    st.error("Failed to load inventory data. Please check the database file ('inventory_poc.db') and ensure it's correctly seeded with the new schema (item_parameters, inventory_batches).")
 
 # --- Placeholder for future elements ---
 # Add other controls or display elements later
