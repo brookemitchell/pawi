@@ -155,6 +155,49 @@ def discard_batch_callback(batch_id):
     else:
         st.warning("Cannot discard batch: Batch data not loaded.")
 
+def advance_week_callback():
+    """Callback function to advance the simulation by one week (7 days)."""
+    print("Advance Week callback triggered.") # Debug print
+    if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None \
+       and 'batches_df' in st.session_state and st.session_state['batches_df'] is not None \
+       and 'current_sim_date' in st.session_state:
+
+        # Get local references to state variables for the loop
+        local_batches_df = st.session_state['batches_df']
+        local_item_params_df = st.session_state['item_params_df']
+        local_current_sim_date = st.session_state['current_sim_date']
+        local_day_count = st.session_state['day_count']
+
+        for _ in range(7): # Loop 7 times for 7 days
+            local_day_count += 1
+            local_current_sim_date += timedelta(days=1)
+
+            # Call the core daily simulation logic
+            local_batches_df = advance_day(
+                local_batches_df,
+                local_item_params_df,
+                local_current_sim_date
+            )
+
+            # --- Record History for each day within the week ---
+            day = local_day_count
+            item_names = local_item_params_df.index
+            for item_name in item_names:
+                total_qoh = local_batches_df[local_batches_df['item_name'] == item_name]['quantity_on_hand'].sum() if not local_batches_df[local_batches_df['item_name'] == item_name].empty else 0
+                st.session_state['history'].append({'day': day, 'item_name': item_name, 'total_qoh': total_qoh})
+            # --- End Record History ---
+
+        # Update session state AFTER the loop completes
+        st.session_state['day_count'] = local_day_count
+        st.session_state['current_sim_date'] = local_current_sim_date
+        # Update expiry status based on the final date and final batches state
+        st.session_state['batches_df'] = update_expiry_status_column(local_batches_df)
+
+        print(f"Advanced by 7 days. Now Day {st.session_state['day_count']}, Sim Date: {st.session_state['current_sim_date']}") # Debug print
+        st.toast("Advanced simulation by 7 days.")
+    else:
+        st.warning("Inventory data not fully loaded or session state incomplete. Cannot advance week.")
+
 # --- Title ---
 st.title("Pawfect inventory")
 
@@ -190,6 +233,7 @@ st.sidebar.metric("Simulation Day", current_day)
 
 # Add the button to trigger the simulation step
 st.sidebar.button("Advance One Day", on_click=advance_day_callback)
+st.sidebar.button("Advance One Week", on_click=advance_week_callback)
 
 
 # --- Main Area: Display Data or Error ---
