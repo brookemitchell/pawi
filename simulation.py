@@ -1,57 +1,101 @@
 import pandas as pd
 import random
+from datetime import date, timedelta # Ensure date is imported
 
-def advance_day(inventory_df: pd.DataFrame) -> pd.DataFrame:
+def advance_day(batches_df: pd.DataFrame, item_params_df: pd.DataFrame, current_sim_date: date) -> pd.DataFrame:
     """
-    Simulates one day of inventory consumption.
+    Simulates one day of inventory consumption using FEFO (First-Expired, First-Out).
 
     Args:
-        inventory_df: The current inventory status DataFrame.
-                      Must include 'min_daily_usage', 'max_daily_usage',
-                      and 'quantity_on_hand' columns.
+        batches_df: DataFrame containing current inventory batches.
+                    Must include 'item_name', 'quantity_on_hand', 'expiry_date'.
+                    Index should be unique (e.g., 'batch_id').
+        item_params_df: DataFrame containing item parameters.
+                        Must include 'min_daily_usage', 'max_daily_usage'.
+                        Index should be 'item_name'.
+        current_sim_date: The current date of the simulation.
 
     Returns:
-        A new DataFrame with updated 'quantity_on_hand' for each item,
-        reflecting the simulated daily consumption. Returns the original
-        DataFrame if input is None or empty.
+        A new DataFrame with updated 'quantity_on_hand' for batches,
+        reflecting the simulated daily consumption based on FEFO.
+        Batches with quantity <= 0 are removed.
+        Returns the original DataFrame if input is invalid.
     """
-    if inventory_df is None or inventory_df.empty:
-        return inventory_df # Return original if invalid input
+    if batches_df is None or item_params_df is None or current_sim_date is None:
+        print("Error: Invalid input to advance_day.")
+        return batches_df # Return original if input is invalid
 
-    df = inventory_df.copy() # Work on a copy to avoid side effects
+    df_copy = batches_df.copy()
 
-    for index, row in df.iterrows():
+    # Ensure expiry_date is in datetime format for comparison
+    # It should already be datetime from data_loader, but double-check
+    if not pd.api.types.is_datetime64_any_dtype(df_copy['expiry_date']):
+         df_copy['expiry_date'] = pd.to_datetime(df_copy['expiry_date'], errors='coerce')
+
+    # Convert current_sim_date to datetime64[ns] to match pandas datetime objects for comparison
+    current_sim_date_dt = pd.to_datetime(current_sim_date)
+
+    for item_name in item_params_df.index:
         try:
-            min_usage = int(row['min_daily_usage'])
-            max_usage = int(row['max_daily_usage'])
-            current_qoh = int(row['quantity_on_hand'])
+            min_usage = int(item_params_df.loc[item_name, 'min_daily_usage'])
+            max_usage = int(item_params_df.loc[item_name, 'max_daily_usage'])
 
-            # Ensure min_usage is not greater than max_usage
+            # Calculate daily consumption
             if min_usage > max_usage:
-                # Handle potential data error: use min_usage as consumption
-                # Or log a warning and use 0 or max_usage
-                print(f"Warning: Min usage ({min_usage}) > Max usage ({max_usage}) for item {index}. Using min_usage.")
+                print(f"Warning: Min usage ({min_usage}) > Max usage ({max_usage}) for item {item_name}. Using min_usage.")
                 daily_consumption = min_usage
             elif min_usage == max_usage:
-                daily_consumption = min_usage # No random needed if range is 0
+                daily_consumption = min_usage
             else:
-                # Generate random consumption within the defined range
                 daily_consumption = random.randint(min_usage, max_usage)
 
-            # Calculate new quantity on hand, ensuring it doesn't go below zero
-            new_qoh = max(0, current_qoh - daily_consumption)
+            if daily_consumption == 0:
+                continue # No consumption for this item today
 
-            # Update the quantity_on_hand in the copied DataFrame
-            df.loc[index, 'quantity_on_hand'] = new_qoh
+            # Filter for active, non-expired batches of the current item
+            # Compare expiry_date (datetime) with current_sim_date_dt (datetime)
+            item_batches_idx = df_copy[
+                (df_copy['item_name'] == item_name) &
+                (df_copy['quantity_on_hand'] > 0) &
+                (df_copy['expiry_date'].notna()) & # Ensure expiry date is not NaT
+                (df_copy['expiry_date'] >= current_sim_date_dt) # Compare datetime objects
+            ].index
+
+            if item_batches_idx.empty:
+                # print(f"No active, non-expired batches found for {item_name} on {current_sim_date}")
+                continue # No batches to consume from
+
+            # Sort these active batches by expiry date (FEFO)
+            sorted_batches = df_copy.loc[item_batches_idx].sort_values(by='expiry_date')
+
+            # Consume from sorted batches
+            for batch_index, batch_data in sorted_batches.iterrows():
+                batch_qoh = batch_data['quantity_on_hand']
+                consume_amount = min(daily_consumption, batch_qoh)
+
+                # Update quantity in the main DataFrame copy
+                df_copy.loc[batch_index, 'quantity_on_hand'] -= consume_amount
+                daily_consumption -= consume_amount
+
+                # print(f"  Consumed {consume_amount} from batch {batch_index} (Item: {item_name}). Remaining consumption: {daily_consumption}") # Debug print
+
+                if daily_consumption <= 0:
+                    break # Finished consuming for this item
 
         except KeyError as e:
-            print(f"Error processing item {index}: Missing expected column {e}. Skipping consumption.")
-            continue # Skip this item if data is missing
+            print(f"Error processing item {item_name}: Missing expected column {e} in item_params_df. Skipping consumption.")
+            continue
         except ValueError as e:
-            print(f"Error processing item {index}: Invalid data type for calculation ({e}). Skipping consumption.")
-            continue # Skip this item if data is not numeric
+            print(f"Error processing item {item_name}: Invalid data type for usage calculation ({e}). Skipping consumption.")
+            continue
+        except Exception as e:
+            print(f"An unexpected error occurred processing item {item_name}: {e}")
+            continue
 
-    return df
+    # Remove batches that have been fully consumed
+    df_copy = df_copy[df_copy['quantity_on_hand'] > 0]
+
+    return df_copy
 
 def calculate_status(qoh: int, rop: int) -> str:
     """
