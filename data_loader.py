@@ -46,8 +46,9 @@ def load_inventory_data(db_name='inventory_poc.db') -> pd.DataFrame | None:
 
     Returns:
         tuple[pd.DataFrame | None, pd.DataFrame | None]: A tuple containing:
-            - item_params_df: DataFrame with item parameters, indexed by item_name.
-            - batches_df: DataFrame with batch details, indexed by batch_id.
+            - inventory_status_df: DataFrame with item parameters, current QOH,
+                                   calculated reorder points/quantities, indexed by item_name.
+            - batches_df: DataFrame with raw batch details, indexed by batch_id.
             Returns (None, None) if loading fails.
     """
     script_dir = os.path.dirname(os.path.abspath(__file__)) # Use abspath for reliability
@@ -103,8 +104,50 @@ def load_inventory_data(db_name='inventory_poc.db') -> pd.DataFrame | None:
                 print("Error: 'batch_id' column not found in inventory_batches table.")
                 return item_params_df, None # Return params, but signal batch error
 
-        print(f"Successfully loaded data from {db_path}")
-        return item_params_df, batches_df
+        # --- Calculate Aggregated QOH and Merge ---
+        if not batches_df.empty:
+            # Calculate total quantity on hand per item from batches
+            qoh_agg = batches_df.groupby('item_name')['quantity_on_hand'].sum().reset_index()
+            qoh_agg = qoh_agg.rename(columns={'quantity_on_hand': 'calculated_qoh'})
+
+            # Merge aggregated QOH into item_params_df
+            # Use left merge to keep all items from item_params_df
+            inventory_status_df = pd.merge(item_params_df.reset_index(), qoh_agg, on='item_name', how='left')
+
+            # Fill NaN in calculated_qoh with 0 (items with params but no batches)
+            inventory_status_df['calculated_qoh'] = inventory_status_df['calculated_qoh'].fillna(0).astype(int)
+
+            # Decide which QOH to use (currently using calculated from batches)
+            # We might want logic here later to use initial_quantity_on_hand if batches are empty
+            inventory_status_df['quantity_on_hand'] = inventory_status_df['calculated_qoh']
+            # Drop the intermediate column and the initial one if no longer needed directly
+            inventory_status_df = inventory_status_df.drop(columns=['calculated_qoh', 'initial_quantity_on_hand'])
+
+        else:
+            # If batches_df is empty, use initial_quantity_on_hand as current QOH
+            print("Warning: Batches table is empty. Using initial_quantity_on_hand as current quantity.")
+            inventory_status_df = item_params_df.reset_index() # Keep item_name as column temporarily
+            inventory_status_df['quantity_on_hand'] = inventory_status_df['initial_quantity_on_hand']
+            inventory_status_df = inventory_status_df.drop(columns=['initial_quantity_on_hand'])
+
+
+        # --- Calculate Reorder Point and Quantity ---
+        # Ensure required columns exist before calculation
+        if all(col in inventory_status_df.columns for col in ['max_daily_usage', 'buffer_days', 'target_days']):
+            inventory_status_df['reorder_point'] = inventory_status_df['max_daily_usage'] * inventory_status_df['buffer_days']
+            inventory_status_df['reorder_quantity'] = inventory_status_df['max_daily_usage'] * inventory_status_df['target_days']
+        else:
+            print("Error: Missing columns required for reorder point/quantity calculation.")
+            # Add empty columns to prevent KeyErrors downstream, but signal the issue
+            inventory_status_df['reorder_point'] = 0
+            inventory_status_df['reorder_quantity'] = 0
+
+
+        # Set item_name back as index for the final status DataFrame
+        inventory_status_df = inventory_status_df.set_index('item_name')
+
+        print(f"Successfully loaded and processed data from {db_path}")
+        return inventory_status_df, batches_df # Return the enhanced status df and original batches df
 
     except sqlite3.Error as e:
         print(f"SQLite error occurred during data loading: {e}")

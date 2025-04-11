@@ -33,4 +33,18 @@ INSERT INTO inventory_items (item_name, min_daily_usage, max_daily_usage, buffer
 ('Applicator type 2', 5, 20, 4, 14, 220),
 ('Applicator type 3', 5, 20, 4, 14, 240);
 
+-- Insert initial batch data based on initial_quantity_on_hand from inventory_items
+-- Using a far-future expiry date as a placeholder
+INSERT INTO inventory_batches (item_name, quantity_on_hand, expiry_date) VALUES
+('Parvo tests', 12, '2099-12-31'),
+('Blood cartridges', 105, '2099-12-31'),
+('Antigen tests', 70, '2099-12-31'),
+('Slide type 1', 200, '2099-12-31'),
+('Slide type 2', 250, '2099-12-31'),
+('Cover glass', 450, '2099-12-31'),
+('Applicator type 1', 140, '2099-12-31'),
+('Applicator type 2', 220, '2099-12-31'),
+('Applicator type 3', 240, '2099-12-31');
+
+
 -- Commit the changes (handled by Python's connection context or explicit commit)
