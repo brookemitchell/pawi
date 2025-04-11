@@ -109,6 +109,7 @@ if 'item_params_df' not in st.session_state:
         # Calculate initial expiry status right after loading
         st.session_state['batches_df'] = update_expiry_status_column(batches_df)
         st.session_state['day_count'] = 0 # Initialize day count on successful load
+        st.session_state['history'] = [] # Initialize history list on successful load
         print("Data loaded successfully into session state and initial expiry status calculated.")
     else:
         # Store None if loading failed, to prevent trying again
@@ -116,6 +117,7 @@ if 'item_params_df' not in st.session_state:
         st.session_state['batches_df'] = None
         st.session_state['current_sim_date'] = date.today() # Initialize date even on failure
         st.session_state['day_count'] = 0 # Initialize day count even on failure
+        st.session_state['history'] = [] # Initialize history list even on failure
         print("Failed to load data during initialization.")
 
 # --- Sidebar ---
