@@ -3,8 +3,8 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta # Import date and timedelta
 from data_loader import load_inventory_data
-from simulation import advance_day # Import the new advance_day function
-# from simulation import calculate_status, simulate_order # Keep others commented for now
+from simulation import advance_day, add_new_batch # Import the new advance_day and add_new_batch functions
+# from simulation import calculate_status # Keep calculate_status commented for now
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(page_title="Pawfect inventory", layout="wide")
@@ -51,16 +51,24 @@ def advance_day_callback():
         # Handle the case where data isn't loaded or state is incomplete
         st.warning("Inventory data not fully loaded or session state incomplete. Cannot advance day.")
 
-# def simulate_order_callback(item_name: str):
-#     """Callback function to simulate placing an order for a specific item."""
-#     if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None:
-#         # Call the order simulation function (Needs update for new data model)
-#         # ordered_batches_df = add_new_batch(st.session_state['batches_df'], st.session_state['item_params_df'], item_name, st.session_state['current_sim_date'])
-#         # Update the DataFrame in session state
-#         # st.session_state['batches_df'] = ordered_batches_df
-#         pass # Placeholder
-#     else:
-#         st.warning("Inventory data not loaded. Cannot simulate order.")
+def simulate_order_callback(item_name: str):
+    """Callback function to simulate placing an order (adding a new batch) for a specific item."""
+    if 'item_params_df' in st.session_state and st.session_state['item_params_df'] is not None \
+       and 'batches_df' in st.session_state and st.session_state['batches_df'] is not None \
+       and 'current_sim_date' in st.session_state:
+
+        # Call the function to add a new batch
+        updated_batches_df = add_new_batch(
+            st.session_state['batches_df'],
+            st.session_state['item_params_df'],
+            item_name,
+            st.session_state['current_sim_date']
+        )
+        # Update the batches DataFrame in session state
+        st.session_state['batches_df'] = updated_batches_df
+        print(f"Simulated order for {item_name}. New batch added.") # Debug print
+    else:
+        st.warning("Inventory data not fully loaded or session state incomplete. Cannot simulate order.")
 
 # --- Title ---
 st.title("Pawfect inventory")
