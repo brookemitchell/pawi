@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 from datetime import date, timedelta # Import date and timedelta
 from data_loader import load_inventory_data
-from simulation import advance_day, add_new_batch, calculate_expiry_status, ALERT_DAYS_BEFORE_EXPIRY, calculate_status # Import calculate_status
+from simulation import advance_day, add_new_batch, calculate_expiry_status, ALERT_DAYS_BEFORE_EXPIRY, calculate_status, discard_batch # Import calculate_status and discard_batch
 
 # --- Page Config (Optional but Recommended) ---
 st.set_page_config(page_title="Pawfect inventory", layout="wide")
@@ -139,6 +139,21 @@ def reorder_all_callback():
 
     else:
         st.warning("Cannot perform reorder action: Inventory data not fully loaded.")
+
+def discard_batch_callback(batch_id):
+    """Callback to discard a specific batch."""
+    print(f"Discard Batch callback triggered for batch_id: {batch_id}") # Debug print
+    if 'batches_df' in st.session_state and st.session_state['batches_df'] is not None:
+        # Ensure the batch_id exists before attempting discard
+        if batch_id in st.session_state['batches_df'].index:
+            updated_df = discard_batch(st.session_state['batches_df'], batch_id)
+            # Recalculate expiry status after discard and update state
+            st.session_state['batches_df'] = update_expiry_status_column(updated_df)
+            st.toast(f"Discarded batch {batch_id}.")
+        else:
+            st.warning(f"Batch ID {batch_id} not found. Cannot discard.")
+    else:
+        st.warning("Cannot discard batch: Batch data not loaded.")
 
 # --- Title ---
 st.title("Pawfect inventory")
