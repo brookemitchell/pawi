@@ -104,9 +104,10 @@ if 'item_params_df' not in st.session_state:
     item_params_df, batches_df = load_inventory_data() # Unpack the tuple
     if item_params_df is not None and batches_df is not None: # Check if both loaded successfully
         st.session_state['item_params_df'] = item_params_df
+        # Initialize simulation date BEFORE calculating expiry status
+        st.session_state['current_sim_date'] = date.today() # Initialize simulation date
         # Calculate initial expiry status right after loading
         st.session_state['batches_df'] = update_expiry_status_column(batches_df)
-        st.session_state['current_sim_date'] = date.today() # Initialize simulation date
         st.session_state['day_count'] = 0 # Initialize day count on successful load
         print("Data loaded successfully into session state and initial expiry status calculated.")
     else:
